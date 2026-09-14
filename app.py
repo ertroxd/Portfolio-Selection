@@ -8,6 +8,9 @@ Die Seite laedt eine gespeicherte PPO-Policy aus runs/, laesst sie ueber den
 Validierungs- oder Testzeitraum laufen und zeichnet jeden Schritt auf: was der
 Agent wollte, was tatsaechlich ausgefuehrt wurde, was es gekostet hat und wie
 sich das Depot entwickelt - verglichen mit MSCI World Buy & Hold als Markt.
+
+Funktioniert mit beiden Laufgenerationen: den ersten Laeufen (2 ETFs, roher State)
+und den Laeufen mit 9 ETFs, separatem Markt-Benchmark und normierter Beobachtung.
 """
 from __future__ import annotations
 
@@ -22,16 +25,23 @@ import streamlit as st
 
 import run_training as rt
 
-MARKT_TIC = "EUNL.DE"  # iShares Core MSCI World - unser "Markt"
+MARKT_STANDARD = "EUNL.DE"  # iShares Core MSCI World
+
+#: Anlageklasse je Ticker (neue Laeufe aus rt.UNIVERSUM, dazu die der ersten Laeufe).
+ANLAGEKLASSE = {**rt.UNIVERSUM, "EUNL.DE": "Aktien Welt", "IS3N.DE": "Aktien Schwellenlaender"}
+
+#: Ab so vielen Titeln wird das Depot nach Gruppen statt je Titel gezeigt.
+MAX_EINZELN = 5
 
 # Farben nach Rolle, feste Reihenfolge der Referenzpalette (nie nach Rang vergeben).
 FARBE_AGENT = "#2a78d6"   # Slot 1
-FARBE_MARKT = "#eb6834"   # Slot 2 - der Markt-ETF, ueberall dieselbe Farbe
-FARBE_GLEICH = "#1baf7a"  # Slot 3 - 1/N
-WEITERE_SLOTS = ["#eda100", "#e87ba4", "#008300", "#4a3aa7"]  # Slots 4-7 fuer weitere ETFs
-FARBE_CASH = "#898781"    # gedaempfte Tinte - Cash ist kein "Titel"
+FARBE_MARKT = "#eb6834"   # Slot 2
+FARBE_GLEICH = "#1baf7a"  # Slot 3
+SLOTS_REST = ["#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]  # Slots 4-8
+FARBE_GRAU = "#898781"    # gedaempfte Tinte: Cash, Kurslinien, Nebenlinien
 FARBE_KAUF = "#2a78d6"    # Kauf/Verkauf: blau/rot plus Dreiecksform (nie nur Farbe)
 FARBE_VERKAUF = "#e34948"
+GRUPPEN_REIHENFOLGE = ["Aktien", "Anleihen", "Gold", "Immobilien", "Rohstoffe"]
 
 
 # ----------------------------------------------------------------------
@@ -49,12 +59,31 @@ def zahl(v: float, stellen: int = 2) -> str:
     return f"{v:.{stellen}f}".replace(".", ",")
 
 
-def farben_titel(tickers: list[str], markt: str) -> dict[str, str]:
-    """Jeder ETF behaelt seine Farbe, egal was gerade ausgewaehlt ist."""
-    out, frei = {}, iter(WEITERE_SLOTS)
-    for t in tickers:
-        out[t] = FARBE_MARKT if t == markt else next(frei)
-    return out
+def gruppe(ticker: str) -> str:
+    klasse = ANLAGEKLASSE.get(ticker, ticker)
+    if klasse.startswith("Aktien"):
+        return "Aktien"
+    if klasse.startswith("Euro-"):
+        return "Anleihen"
+    return klasse.split(" ")[0]
+
+
+def depot_spalten(tickers: list[str]) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """Welche Titel zu welcher Depot-Linie gehoeren, und welche Farbe die Linie hat.
+
+    Wenige Titel: eine Linie je Titel. Viele Titel: eine Linie je Anlageklasse,
+    damit nie mehr Farben gebraucht werden, als die Palette sauber trennt.
+    """
+    if len(tickers) <= MAX_EINZELN:
+        spalten = {t: [t] for t in tickers}
+    else:
+        spalten = {}
+        for g in GRUPPEN_REIHENFOLGE + sorted({gruppe(t) for t in tickers} - set(GRUPPEN_REIHENFOLGE)):
+            mitglieder = [t for t in tickers if gruppe(t) == g]
+            if mitglieder:
+                spalten[g] = mitglieder
+    farben = {name: SLOTS_REST[i % len(SLOTS_REST)] for i, name in enumerate(spalten)}
+    return spalten, farben
 
 
 def layout(fig: go.Figure, y_titel: str, hoehe: int = 380, prozent: bool = False) -> go.Figure:
@@ -83,6 +112,11 @@ def daten(tickers: tuple[str, ...], start: str, end: str, indikatoren: tuple[str
     raw = rt.load_prices(list(tickers), start, end)
     processed = rt.add_features(raw, list(indikatoren))
     return raw, processed
+
+
+@st.cache_data(show_spinner="Lade Marktdaten ...")
+def markt_daten(ticker: str, start: str, end: str) -> pd.DataFrame:
+    return rt.load_prices([ticker], start, end)
 
 
 @st.cache_resource(show_spinner="Lade Modell ...")
@@ -151,7 +185,7 @@ def rollout(run_name: str, seed: int, zeitraum: str, fee: float, rebalance: int)
     depot = pd.DataFrame(tage)
     depot["Datum"] = pd.to_datetime(depot["Datum"])
     return {
-        "cfg": cfg, "tickers": tickers, "kurve": kurve, "schritte": schritte,
+        "tickers": tickers, "kurve": kurve, "schritte": schritte,
         "depot": depot.set_index("Datum"), "obs": np.vstack(beobachtungen),
         "orders": int(env.trades), "gebuehren": float(env.cost),
     }
@@ -159,12 +193,33 @@ def rollout(run_name: str, seed: int, zeitraum: str, fee: float, rebalance: int)
 
 def benchmarks(cfg: dict, zeitraum: str, fee: float) -> dict[str, tuple[pd.Series, dict]]:
     raw, _ = daten(tuple(cfg["tickers"]), cfg["start"], cfg["end"], tuple(cfg["indicators"]))
-    teil = raw[raw.date.isin(split_df(cfg, zeitraum).date.unique())]
+    tage = split_df(cfg, zeitraum).date.unique()
+    teil = raw[raw.date.isin(tage)]
     out = {}
+    markt = cfg.get("markt")
+    if markt and markt not in cfg["tickers"]:
+        m = markt_daten(markt, cfg["start"], cfg["end"])
+        out[f"100 % {markt}"] = rt.bh_single(m[m.date.isin(tage)], cfg["initial"], fee, markt)
     for t in cfg["tickers"]:
         out[f"100 % {t}"] = rt.bh_single(teil, cfg["initial"], fee, t)
     out["1/N Buy & Hold"] = rt.bh_equal(teil, cfg["initial"], fee)
     return out
+
+
+def obs_spalte(cfg: dict, n: int, indikator: str, titel_idx: int) -> int:
+    """Position eines Indikators in der Beobachtung des Agenten."""
+    davor = 1 + n if cfg.get("normalize_obs") else 1 + 2 * n
+    return davor + cfg["indicators"].index(indikator) * n + titel_idx
+
+
+def obs_name(cfg: dict, indikator: str) -> str:
+    if not cfg.get("normalize_obs"):
+        return indikator
+    if indikator.startswith("rsi"):
+        return f"{indikator} / 100"
+    if indikator.startswith("macd"):
+        return f"{indikator} / Kurs"
+    return indikator
 
 
 # ----------------------------------------------------------------------
@@ -179,7 +234,8 @@ if not laeufe:
 
 with st.sidebar:
     st.header("Einstellungen")
-    start_idx = next((i for i, p in enumerate(laeufe) if p.name.endswith("daily_fee1")), 0)
+    start_idx = next((i for i, p in enumerate(laeufe) if p.name.endswith("k10000_daily")),
+                     next((i for i, p in enumerate(laeufe) if "smoke" not in p.name), 0))
     run = st.selectbox("Trainingslauf", laeufe, index=start_idx, format_func=lambda p: p.name)
     cfg = json.loads((run / "config.json").read_text(encoding="utf-8"))
     seeds = sorted(int(z.stem.removeprefix("ppo_seed")) for z in run.glob("ppo_seed*.zip"))
@@ -192,12 +248,18 @@ with st.sidebar:
                                "unter anderen Kosten – wie eval_saved.py.")
     rebalance = st.number_input("Handeln alle n Handelstage", min_value=1, max_value=63,
                                 value=int(cfg["rebalance"]), step=1)
-    markt = st.selectbox("Markt-Vergleich", cfg["tickers"],
-                         index=cfg["tickers"].index(MARKT_TIC) if MARKT_TIC in cfg["tickers"] else 0)
+    markt_optionen = list(dict.fromkeys(
+        ([cfg["markt"]] if cfg.get("markt") else []) + cfg["tickers"]))
+    standard_markt = cfg.get("markt") or MARKT_STANDARD
+    markt = st.selectbox("Markt-Vergleich", markt_optionen,
+                         index=markt_optionen.index(standard_markt) if standard_markt in markt_optionen else 0)
     st.divider()
     st.caption(
         f"**Training:** {cfg['timesteps']:,} Timesteps".replace(",", ".")
-        + f" · Gebühr {zahl(cfg['fee'])} € · Handeln alle {cfg['rebalance']} T · Start {eur(cfg['initial'])}"
+        + f" · Start {eur(cfg['initial'])} · Gebühr {zahl(cfg['fee'])} € · "
+        f"Handeln alle {cfg['rebalance']} T · {len(cfg['tickers'])} Titel · "
+        f"hmax {cfg['hmax']:,}".replace(",", ".")
+        + f" · Beobachtung {'Anteile' if cfg.get('normalize_obs') else 'roh'}"
         + f"\n\n**Train** {cfg['start']} – {cfg['train_end']} · **Valid** bis {cfg['valid_end']} · "
         f"**Test** bis {cfg['end']} (Enddaten jeweils exklusiv)"
     )
@@ -209,16 +271,16 @@ if fee != cfg["fee"] or rebalance != cfg["rebalance"]:
 
 r = rollout(run.name, seed, zeitraum, fee, rebalance)
 tickers, kurve, schritte, depot = r["tickers"], r["kurve"], r["schritte"], r["depot"]
-farbe = farben_titel(tickers, markt)
+n = len(tickers)
 bm = benchmarks(cfg, zeitraum, fee)
 markt_kurve, markt_info = bm[f"100 % {markt}"]
 gleich_kurve, gleich_info = bm["1/N Buy & Hold"]
-markt_name = "MSCI World (EUNL.DE)" if markt == MARKT_TIC else f"100 % {markt}"
+markt_name = f"Markt {ANLAGEKLASSE.get(markt, markt)} ({markt})"
 
 st.title("Der Agent beim Handeln")
 st.caption(f"{run.name} · Seed {seed} · {zeitraum} {kurve.index[0]:%d.%m.%Y} – "
            f"{kurve.index[-1]:%d.%m.%Y} · Startkapital {eur(cfg['initial'])} · "
-           f"{zahl(fee)} € je Order")
+           f"{zahl(fee)} € je Order · {n} Titel")
 
 m_agent, m_markt, m_gleich = rt.metrics(kurve), rt.metrics(markt_kurve), rt.metrics(gleich_kurve)
 
@@ -272,9 +334,9 @@ with tab_wert:
     st.caption("Depotwert Agent ÷ Depotwert Markt − 1. Über null liegt der Agent vorne.")
     vorsprung = kurve / markt_kurve.reindex(kurve.index) - 1
     fig = go.Figure()
-    fig.add_scatter(x=vorsprung.index, y=vorsprung, name="Vorsprung",
+    fig.add_scatter(x=vorsprung.index, y=vorsprung, name="Vorsprung", connectgaps=True,
                     line=dict(color=FARBE_AGENT, width=2), hovertemplate="%{y:+.1%}")
-    fig.add_hline(y=0, line_width=1, line_color=FARBE_CASH)
+    fig.add_hline(y=0, line_width=1, line_color=FARBE_GRAU)
     fig.update_layout(showlegend=False)
     zeige(layout(fig, "Vorsprung", hoehe=260, prozent=True))
 
@@ -303,26 +365,43 @@ with tab_trades:
                    f"der Rest an fehlendem Cash, fehlendem Bestand oder einer Order kleiner "
                    f"als die Gebühr.")
 
-    for t in tickers:
-        st.subheader(f"{t}{' · Markt' if t == markt else ''}")
-        kurs = schritte[schritte.Titel == t]
-        o = orders[orders.Titel == t]
-        fig = go.Figure()
-        fig.add_scatter(x=kurs.Datum, y=kurs.Kurs, name="Kurs",
-                        line=dict(color=farbe[t], width=2), hovertemplate="%{y:.2f} €")
-        for richtung, symbol, col in (("Kauf", "triangle-up", FARBE_KAUF),
-                                      ("Verkauf", "triangle-down", FARBE_VERKAUF)):
-            teil = o[o.Richtung == richtung]
-            fig.add_scatter(
-                x=teil.Datum, y=teil.Kurs, mode="markers", name=richtung,
-                marker=dict(symbol=symbol, size=11, color=col,
-                            line=dict(width=1.5, color="rgba(255,255,255,0.9)")),
-                customdata=(np.stack([teil["Stück"], teil.Volumen, teil.Gebuehr], axis=-1)
-                            if len(teil) else None),
-                hovertemplate=f"{richtung}: %{{customdata[0]}} Stück · %{{customdata[1]:,.0f}} € "
-                              f"· Gebühr %{{customdata[2]:.2f}} €<extra></extra>",
-            )
-        zeige(layout(fig, "Kurs in €", hoehe=320))
+    st.subheader("Orders je Titel")
+    je_titel = (
+        schritte.groupby("Titel")
+        .agg(Käufe=("Ausgefuehrt", lambda s: int((s > 0).sum())),
+             Verkäufe=("Ausgefuehrt", lambda s: int((s < 0).sum())),
+             Gebühren=("Gebuehr", "sum"),
+             Bestand_Ende=("Bestand", "last"))
+        .reindex(tickers)
+        .reset_index()
+    )
+    je_titel.insert(1, "Anlageklasse", je_titel.Titel.map(lambda t: ANLAGEKLASSE.get(t, "")))
+    st.dataframe(je_titel.rename(columns={"Bestand_Ende": "Stück am Ende"}),
+                 hide_index=True, width="stretch",
+                 column_config={"Gebühren": st.column_config.NumberColumn(format="%.0f €")})
+
+    meist = orders.Titel.value_counts()
+    titel_wahl = st.selectbox("Kursverlauf mit Orders für", tickers,
+                              index=tickers.index(meist.index[0]) if len(meist) else 0,
+                              format_func=lambda t: f"{t} · {ANLAGEKLASSE.get(t, '')}")
+    kurs = schritte[schritte.Titel == titel_wahl]
+    o = orders[orders.Titel == titel_wahl]
+    fig = go.Figure()
+    fig.add_scatter(x=kurs.Datum, y=kurs.Kurs, name="Kurs",
+                    line=dict(color=FARBE_GRAU, width=2), hovertemplate="%{y:.2f} €")
+    for richtung, symbol, col in (("Kauf", "triangle-up", FARBE_KAUF),
+                                  ("Verkauf", "triangle-down", FARBE_VERKAUF)):
+        teil = o[o.Richtung == richtung]
+        fig.add_scatter(
+            x=teil.Datum, y=teil.Kurs, mode="markers", name=richtung,
+            marker=dict(symbol=symbol, size=11, color=col,
+                        line=dict(width=1.5, color="rgba(255,255,255,0.9)")),
+            customdata=(np.stack([teil["Stück"], teil.Volumen, teil.Gebuehr], axis=-1)
+                        if len(teil) else None),
+            hovertemplate=f"{richtung}: %{{customdata[0]}} Stück · %{{customdata[1]:,.0f}} € "
+                          f"· Gebühr %{{customdata[2]:.2f}} €<extra></extra>",
+        )
+    zeige(layout(fig, "Kurs in €", hoehe=340))
 
     st.subheader("Orderbuch")
     if orders.empty:
@@ -342,19 +421,23 @@ with tab_trades:
 
 # --- Depot ---------------------------------------------------------------
 with tab_depot:
-    teile = [("Cash", FARBE_CASH)] + [(t, farbe[t]) for t in tickers]
+    spalten, farben = depot_spalten(tickers)
+    linien = pd.DataFrame({"Cash": depot.Cash,
+                           **{name: depot[mitglieder].sum(axis=1) for name, mitglieder in spalten.items()}})
+    teile = [("Cash", FARBE_GRAU)] + [(name, farben[name]) for name in spalten]
+    einheit = "je Titel" if len(tickers) <= MAX_EINZELN else "nach Anlageklasse"
 
-    st.subheader("Zusammensetzung in €")
+    st.subheader(f"Zusammensetzung in € {einheit}")
     st.caption("Nach dem Handel des jeweiligen Tages, bewertet zum Tageskurs.")
     fig = go.Figure()
     for spalte, col in teile:
-        fig.add_scatter(x=depot.index, y=depot[spalte], name=spalte, stackgroup="wert",
+        fig.add_scatter(x=linien.index, y=linien[spalte], name=spalte, stackgroup="wert",
                         line=dict(width=0.5, color=col), fillcolor=col,
                         hovertemplate="%{y:,.0f} €")
     zeige(layout(fig, "Wert in €"))
 
-    st.subheader("Anteile am Depot")
-    anteile = depot.div(depot.sum(axis=1), axis=0)
+    st.subheader(f"Anteile am Depot {einheit}")
+    anteile = linien.div(linien.sum(axis=1), axis=0)
     fig = go.Figure()
     for spalte, col in teile:
         fig.add_scatter(x=anteile.index, y=anteile[spalte], name=spalte, stackgroup="anteil",
@@ -364,23 +447,36 @@ with tab_depot:
     fig.update_yaxes(range=[0, 1])
     zeige(fig)
 
-    with st.expander("Tabelle"):
+    st.subheader("Durchschnittlicher Anteil je Titel")
+    mittel = depot.div(depot.sum(axis=1), axis=0).mean().rename("Anteil im Mittel").reset_index()
+    mittel.columns = ["Position", "Anteil im Mittel"]
+    mittel.insert(1, "Anlageklasse", mittel.Position.map(lambda t: ANLAGEKLASSE.get(t, "")))
+    st.dataframe(mittel.sort_values("Anteil im Mittel", ascending=False), hide_index=True,
+                 width="stretch",
+                 column_config={"Anteil im Mittel": st.column_config.ProgressColumn(
+                     format="percent", min_value=0.0, max_value=1.0)})
+
+    with st.expander("Tabelle (Werte in € je Tag)"):
         st.dataframe(depot.round(0), width="stretch")
 
 # --- Was hat er gelernt? -------------------------------------------------
 with tab_gelernt:
     st.subheader("Kurzdiagnose")
-    n_tage, n = schritte.Datum.nunique(), len(tickers)
+    n_tage = schritte.Datum.nunique()
     rate = r["orders"] / (n_tage * n)
     anteil_cash = depot.Cash / depot.sum(axis=1)
     voll = anteil_cash[anteil_cash < 0.05]
+    groesster = depot.drop(columns="Cash").div(depot.sum(axis=1), axis=0).mean()
 
     # Welchem Buy-&-Hold-Portfolio sieht die Kurve am aehnlichsten?
     abstand = {name: float(np.sqrt(((kurve / k.reindex(kurve.index) - 1) ** 2).mean()))
                for name, (k, _) in bm.items()}
     naechster = min(abstand, key=abstand.get)
 
-    if r["orders"] <= 2 * n:
+    if r["orders"] == 0:
+        verhalten = ("**Kein Handel.** Der Agent hat keine einzige Order ausgeführt und das "
+                     "Startkapital als Bargeld gehalten.")
+    elif r["orders"] <= 2 * n:
         verhalten = (f"**Praktisch Buy & Hold.** {r['orders']} Orders im gesamten Zeitraum – "
                      f"einmal kaufen, danach Stillstand.")
     elif rate >= 0.5:
@@ -394,16 +490,24 @@ with tab_gelernt:
     st.markdown(verhalten)
     zeilen_md = [f"- Durchschnittlicher Cash-Anteil: **{pct(anteil_cash.mean())}**"
                  + (f", voll investiert (unter 5 % Cash) ab **{voll.index[0]:%d.%m.%Y}**"
-                    if len(voll) else ", nie voll investiert"),
-                 f"- Am ähnlichsten zu **{naechster}** – mittlere relative Abweichung "
-                 f"{pct(abstand[naechster])}"]
+                    if len(voll) else ", nie voll investiert")]
+    if r["orders"] > 0:
+        zeilen_md.append(f"- Größte Position im Mittel: **{groesster.idxmax()}** "
+                         f"({ANLAGEKLASSE.get(groesster.idxmax(), '')}) mit {pct(groesster.max())}")
+    zeilen_md.append(f"- Am ähnlichsten zu **{naechster}** – mittlere relative Abweichung "
+                     f"{pct(abstand[naechster])}")
     st.markdown("\n".join(zeilen_md))
-    if abstand[naechster] < 0.01 and rate >= 0.5:
+    if r["orders"] > 0 and abstand[naechster] < 0.01 and rate >= 0.5:
         st.info(f"Unter 1 % Abweichung von **{naechster}** – trotz {r['orders']} Orders. "
                 f"Der viele Handel bewegt das Ergebnis kaum, er kostet nur Gebühren.")
-    elif abstand[naechster] < 0.01:
+    elif r["orders"] > 0 and abstand[naechster] < 0.01:
         st.info(f"Unter 1 % Abweichung: Dieser Agent hat im Kern gelernt, **{naechster}** "
                 f"nachzubauen. Das ist keine Handelsstrategie, sondern eine feste Allokation.")
+    if cfg.get("normalize_obs"):
+        schwelle = 1 / cfg["hmax"]
+        st.caption(f"Totzone: Eine Aktion wird erst ab ±{zahl(schwelle, 3)} zu mindestens einem "
+                   f"Anteil (hmax = {cfg['hmax']:,}).".replace(",", ".")
+                   + " Bei kleinem Startkapital ist diese Zone breit.")
 
     st.divider()
     st.subheader("Was der Agent sieht – und was er daraus macht")
@@ -411,15 +515,16 @@ with tab_gelernt:
                "Rohaktion der Policy (−1 = maximal verkaufen, +1 = maximal kaufen). "
                "Form und Farbe zeigen, was tatsächlich ausgeführt wurde.")
     s1, s2 = st.columns(2)
-    titel = s1.selectbox("Titel", tickers, key="scatter_titel")
+    titel = s1.selectbox("Titel", tickers, key="scatter_titel",
+                         format_func=lambda t: f"{t} · {ANLAGEKLASSE.get(t, '')}")
     indikator = s2.selectbox("Indikator", cfg["indicators"], key="scatter_ind")
 
-    spalte = 1 + 2 * n + cfg["indicators"].index(indikator) * n + tickers.index(titel)
+    spalte = obs_spalte(cfg, n, indikator, tickers.index(titel))
     s = schritte[schritte.Titel == titel].reset_index(drop=True)
-    s["Wert"] = r["obs"][:, spalte]  # State-Layout von StockTradingEnv
+    s["Wert"] = r["obs"][:, spalte]
     fig = go.Figure()
     for name, maske, symbol, col in (
-        ("Kein Handel", s.Ausgefuehrt == 0, "circle", FARBE_CASH),
+        ("Kein Handel", s.Ausgefuehrt == 0, "circle", FARBE_GRAU),
         ("Kauf", s.Ausgefuehrt > 0, "triangle-up", FARBE_KAUF),
         ("Verkauf", s.Ausgefuehrt < 0, "triangle-down", FARBE_VERKAUF),
     ):
@@ -427,18 +532,19 @@ with tab_gelernt:
         fig.add_scatter(x=teil.Wert, y=teil.Aktion, mode="markers", name=name,
                         marker=dict(symbol=symbol, size=8, color=col, opacity=0.75),
                         customdata=teil.Datum.dt.strftime("%d.%m.%Y"),
-                        hovertemplate="%{customdata}<br>" + indikator
-                                      + " %{x:.2f} · Aktion %{y:+.2f}<extra>" + name + "</extra>")
-    fig.update_xaxes(title_text=f"{indikator} ({titel})")
+                        hovertemplate="%{customdata}<br>" + obs_name(cfg, indikator)
+                                      + " %{x:.3f} · Aktion %{y:+.2f}<extra>" + name + "</extra>")
+    fig.update_xaxes(title_text=f"{obs_name(cfg, indikator)} ({titel})")
     fig.update_yaxes(title_text="Rohaktion", range=[-1.05, 1.05], tickformat=".1f")
     fig.update_layout(height=380, hovermode="closest", margin=dict(l=8, r=8, t=36, b=8),
                       legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0))
     zeige(fig)
 
     st.subheader("Policy-Sonde")
-    st.caption("Alle Eingaben bleiben wie an einem gewählten Tag – nur ein Indikator wird "
-               "über seinen beobachteten Wertebereich verschoben. So sieht man, worauf die "
-               "Policy reagiert. Wechselwirkungen zwischen Eingaben zeigt diese Ansicht nicht.")
+    st.caption("Alle Eingaben bleiben wie an einem gewählten Tag – nur ein Indikator eines "
+               "Titels wird über seinen beobachteten Wertebereich verschoben. Die farbige "
+               "Linie ist die Aktion für genau diesen Titel, die grauen Linien die Aktionen "
+               "für alle anderen. Wechselwirkungen zwischen Eingaben zeigt diese Ansicht nicht.")
     daten_liste = list(s.Datum.dt.strftime("%d.%m.%Y"))
     p1, p2, p3 = st.columns([2, 1, 1])
     tag_wahl = p1.select_slider("Ausgangstag", options=daten_liste,
@@ -447,7 +553,8 @@ with tab_gelernt:
     sonde_ind = p3.selectbox("Indikator", cfg["indicators"], key="sonde_ind")
 
     t_idx = daten_liste.index(tag_wahl)
-    sp = 1 + 2 * n + cfg["indicators"].index(sonde_ind) * n + tickers.index(sonde_titel)
+    ti = tickers.index(sonde_titel)
+    sp = obs_spalte(cfg, n, sonde_ind, ti)
     beobachtet = r["obs"][:, sp]
     werte = np.linspace(beobachtet.min(), beobachtet.max(), 80)
     X = np.repeat(r["obs"][t_idx][None, :], len(werte), axis=0)
@@ -457,12 +564,17 @@ with tab_gelernt:
 
     fig = go.Figure()
     for i, t in enumerate(tickers):
-        fig.add_scatter(x=werte, y=aktionen[:, i], name=f"Aktion {t}",
-                        line=dict(color=farbe[t], width=2), hovertemplate="%{y:+.2f}")
-    fig.add_vline(x=float(beobachtet[t_idx]), line_width=1, line_color=FARBE_CASH,
+        if i != ti:
+            fig.add_scatter(x=werte, y=aktionen[:, i], name="andere Titel",
+                            legendgroup="andere", showlegend=(i == (1 if ti == 0 else 0)),
+                            line=dict(color=FARBE_GRAU, width=1), opacity=0.6,
+                            hovertemplate=f"{t} %{{y:+.2f}}<extra></extra>")
+    fig.add_scatter(x=werte, y=aktionen[:, ti], name=f"Aktion {sonde_titel}",
+                    line=dict(color=FARBE_AGENT, width=2.5), hovertemplate="%{y:+.2f}")
+    fig.add_vline(x=float(beobachtet[t_idx]), line_width=1, line_color=FARBE_GRAU,
                   annotation_text="tatsächlicher Wert", annotation_position="top")
-    fig.add_hline(y=0, line_width=1, line_color=FARBE_CASH)
-    fig.update_xaxes(title_text=f"{sonde_ind} ({sonde_titel})")
+    fig.add_hline(y=0, line_width=1, line_color=FARBE_GRAU)
+    fig.update_xaxes(title_text=f"{obs_name(cfg, sonde_ind)} ({sonde_titel})")
     fig.update_yaxes(title_text="Rohaktion", range=[-1.05, 1.05], tickformat=".1f")
     fig.update_layout(height=340, hovermode="x unified", margin=dict(l=8, r=8, t=36, b=8),
                       legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0))

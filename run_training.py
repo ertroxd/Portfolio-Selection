@@ -6,19 +6,20 @@ Ein Lauf = Daten laden -> Features -> Split -> PPO trainieren (ueber mehrere See
 
 Beispiele
 ---------
-    # Smoke-Test: laeuft in ca. 1 Minute durch, Ergebnis ist bedeutungslos
-    python run_training.py --timesteps 2000 --seeds 42 --tag smoke
+    # Smoke-Test: laeuft in 1-2 Minuten durch, Ergebnis ist bedeutungslos
+    python run_training.py --timesteps 2000 --seeds 42 --end 2026-09-09 --tag smoke
 
-    # Erster echter Lauf, 3 Seeds, taegliches Handeln
-    python run_training.py --timesteps 60000 --seeds 42 43 44 --tag daily
+    # 8 Seeds, 10.000 EUR Startkapital, taegliches Handeln
+    python run_training.py --seeds 42 43 44 45 46 47 48 49 --initial 10000 --end 2026-09-09 --tag k10000_daily
 
-    # Monatliches Rebalancing ("semi-automatisch")
-    python run_training.py --timesteps 60000 --seeds 42 43 44 --rebalance 21 --tag monthly
+    # dasselbe, Handeln nur alle 21 Handelstage ("semi-automatisch")
+    python run_training.py --seeds 42 43 44 45 46 47 48 49 --initial 10000 --rebalance 21 --end 2026-09-09 --tag k10000_monthly
 """
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -36,6 +37,22 @@ DATA_DIR = HERE / "data"
 RUNS_DIR = HERE / "runs"
 
 TRADING_DAYS = 252
+
+#: Handelbares Universum: neun Xetra-ETFs/ETCs ueber die grossen Anlageklassen.
+UNIVERSUM = {
+    "SXR8.DE": "Aktien USA",
+    "XSX6.DE": "Aktien Europa",
+    "IQQJ.DE": "Aktien Japan",
+    "IQQE.DE": "Aktien Schwellenlaender",
+    "EUNH.DE": "Euro-Staatsanleihen",
+    "D5BG.DE": "Euro-Unternehmensanleihen",
+    "4GLD.DE": "Gold (ETC)",
+    "IQQ6.DE": "Immobilien global",
+    "EXXY.DE": "Rohstoffe breit",
+}
+
+#: Markt-Benchmark B4 "Aktien Welt". Wird nicht gehandelt, nur verglichen.
+MARKT = "EUNL.DE"
 
 
 # ----------------------------------------------------------------------
@@ -144,23 +161,29 @@ def _prices_wide(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def bh_equal(df: pd.DataFrame, initial: float, fee: float) -> tuple[pd.Series, dict]:
-    """1/N Buy & Hold: einmal kaufen, liegen lassen."""
+    """1/N Buy & Hold: einmal kaufen, liegen lassen.
+
+    Mit kleinem Kapital und ganzen Stuecken bleiben teure Titel bei 0 Stueck.
+    Dann findet fuer sie keine Order statt, und es wird auch keine Gebuehr gezaehlt.
+    """
     px = _prices_wide(df)
     n = px.shape[1]
     budget = (initial - n * fee) / n
-    shares = (budget // px.iloc[0]).astype(int)
-    cash = initial - float((shares * px.iloc[0]).sum()) - n * fee
+    shares = (budget // px.iloc[0]).clip(lower=0).astype(int)
+    orders = int((shares > 0).sum())
+    cash = initial - float((shares * px.iloc[0]).sum()) - orders * fee
     curve = px.mul(shares, axis=1).sum(axis=1) + cash
-    return curve.rename("1/N Buy & Hold"), {"Gebuehren": n * fee, "Orders": n}
+    return curve.rename("1/N Buy & Hold"), {"Gebuehren": orders * fee, "Orders": orders}
 
 
 def bh_single(df: pd.DataFrame, initial: float, fee: float, tic: str) -> tuple[pd.Series, dict]:
     """100 % in einen Titel, Buy & Hold."""
     px = _prices_wide(df)[[tic]]
     shares = int((initial - fee) // px.iloc[0, 0])
-    cash = initial - shares * px.iloc[0, 0] - fee
+    orders = 1 if shares > 0 else 0
+    cash = initial - shares * px.iloc[0, 0] - orders * fee
     curve = px.iloc[:, 0] * shares + cash
-    return curve.rename(f"100% {tic} B&H"), {"Gebuehren": fee, "Orders": 1}
+    return curve.rename(f"100% {tic} B&H"), {"Gebuehren": orders * fee, "Orders": orders}
 
 
 def rebalance_periodic(
@@ -218,35 +241,44 @@ def build_env(split_df, args, indicators, fee, rebalance):
         reward_scaling=args.reward_scaling,
         print_verbosity=10**9,            # FinRLs Episoden-Prints unterdruecken
     )
-    return TradeRepublicEnv(df=split_df, fixed_fee=fee, rebalance_every=rebalance, **kwargs)
+    # Alte Laeufe haben kein normalize_obs in der config -> roher State wie damals.
+    return TradeRepublicEnv(df=split_df, fixed_fee=fee, rebalance_every=rebalance,
+                            normalize_obs=getattr(args, "normalize_obs", False), **kwargs)
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--tickers", nargs="+", default=["EUNL.DE", "IS3N.DE"])
+    p.add_argument("--tickers", nargs="+", default=list(UNIVERSUM))
+    p.add_argument("--markt", default=MARKT, help="Markt-Benchmark, wird nicht gehandelt")
     p.add_argument("--start", default="2016-01-01")
     p.add_argument("--train-end", default="2023-01-01", help="exklusiv")
     p.add_argument("--valid-end", default="2024-01-01", help="exklusiv")
-    p.add_argument("--end", default=datetime.today().strftime("%Y-%m-%d"))
+    p.add_argument("--end", default=datetime.today().strftime("%Y-%m-%d"),
+                   help="exklusiv - fuer vergleichbare Laeufe immer fest setzen")
     p.add_argument("--indicators", nargs="+", default=["rsi_30", "macd"])
     p.add_argument("--timesteps", type=int, default=60_000)
     p.add_argument("--seeds", nargs="+", type=int, default=[42])
     p.add_argument("--fee", type=float, default=1.0, help="EUR je Order")
     p.add_argument("--rebalance", type=int, default=1, help="1=taeglich, 21=monatlich")
     p.add_argument("--initial", type=float, default=10_000.0)
-    p.add_argument("--hmax", type=int, default=100)
-    p.add_argument("--reward-scaling", type=float, default=1e-4)
+    p.add_argument("--hmax", type=int, default=None,
+                   help="max. Stueck je Order. Standard: eine volle Aktion im billigsten "
+                        "Titel bewegt 1/N des Startkapitals")
+    p.add_argument("--reward-scaling", type=float, default=None,
+                   help="Standard: 100 / Startkapital")
+    p.add_argument("--rohe-beobachtung", action="store_true",
+                   help="Agent sieht rohe Euro-Betraege statt Anteilen (wie die ersten Laeufe)")
     p.add_argument("--tag", default="run")
     args = p.parse_args()
+    args.normalize_obs = not args.rohe_beobachtung
+    if args.reward_scaling is None:
+        # Reward = Vermoegensaenderung * Skalierung. So ist er relativ zum Startkapital
+        # immer gleich gross: 1 % Gewinn gibt bei jedem Kapital denselben Reward.
+        args.reward_scaling = 100.0 / args.initial
 
     from finrl.agents.stablebaselines3.models import DRLAgent
     from finrl.meta.preprocessor.preprocessors import data_split
-
-    out = RUNS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}_{args.tag}"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "config.json").write_text(json.dumps(vars(args), indent=2), encoding="utf-8")
-    print(f"[run ] {out}")
 
     # --- Daten ---
     raw = load_prices(args.tickers, args.start, args.end)
@@ -261,12 +293,27 @@ def main() -> None:
         print(f"[split] {name}: {part.date.min()} .. {part.date.max()}  "
               f"({part.date.nunique()} Handelstage)")
 
+    if args.hmax is None:
+        erster_tag = train[train.date == train.date.min()]
+        args.hmax = max(1, math.ceil(args.initial / len(args.tickers) / erster_tag.close.min()))
+
+    out = RUNS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}_{args.tag}"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "config.json").write_text(json.dumps(vars(args), indent=2), encoding="utf-8")
+    print(f"[run ] {out}")
+    print(f"[run ] Startkapital {args.initial:,.0f} EUR | {len(args.tickers)} Titel | "
+          f"hmax {args.hmax} | reward_scaling {args.reward_scaling:g} | "
+          f"Beobachtung {'Anteile' if args.normalize_obs else 'roh'}")
+
     # --- Benchmarks (auf dem Testzeitraum) ---
-    test_raw = raw[raw.date.isin(test.date.unique())]
+    test_tage = test.date.unique()
+    test_raw = raw[raw.date.isin(test_tage)]
+    markt_raw = load_prices([args.markt], args.start, args.end)
+    markt_test = markt_raw[markt_raw.date.isin(test_tage)]
     benchmarks, bench_info = {}, {}
     for curve, info in (
         bh_equal(test_raw, args.initial, args.fee),
-        bh_single(test_raw, args.initial, args.fee, args.tickers[0]),
+        bh_single(markt_test, args.initial, args.fee, args.markt),
         rebalance_periodic(test_raw, args.initial, args.fee, max(args.rebalance, 21)),
     ):
         benchmarks[curve.name] = curve
@@ -308,7 +355,7 @@ def main() -> None:
             if split_name == "test":
                 agent_curves[f"PPO seed {seed}"] = curve
                 df_act.to_csv(out / f"actions_seed{seed}.csv", index=False)
-            print(f"[seed {seed}] {split_name}: Endwert {m['Endwert']:>10,.0f} EUR | "
+            print(f"[seed {seed}] {split_name}: Endwert {m['Endwert']:>12,.0f} EUR | "
                   f"Sharpe {m['Sharpe']:>6.2f} | MaxDD {m['MaxDD']:>7.1%} | "
                   f"{orders} Orders, {fees:.0f} EUR Gebuehren")
 
@@ -340,7 +387,8 @@ def main() -> None:
     for name, curve in benchmarks.items():
         plt.plot(curve.index, curve.values, lw=1.2, ls="--", alpha=0.8, label=name)
     plt.title(f"Depotwert im Testzeitraum ({args.valid_end} .. {args.end}), "
-              f"{args.fee:.2f} EUR/Order, Rebalancing alle {args.rebalance} Handelstage")
+              f"Start {args.initial:,.0f} EUR, {args.fee:.2f} EUR/Order, "
+              f"Handeln alle {args.rebalance} Handelstage")
     plt.ylabel("Depotwert in EUR")
     plt.legend(fontsize=8)
     plt.grid(alpha=0.3)

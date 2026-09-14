@@ -7,10 +7,11 @@ Wer sie einmal von oben nach unten liest, kann jede Frage im Referat beantworten
 
 ## 0. Das Ganze in einem Satz
 
-Wir bringen einem Computerprogramm bei, 10.000 € auf zwei Aktienfonds zu verteilen,
-lassen es dabei für jeden Kauf und Verkauf 1 € Gebühr zahlen – so wie bei Trade
-Republic – und schauen dann, ob es am Ende besser ist als jemand, der einfach
-kauft und nichts mehr tut.
+Wir bringen einem Computerprogramm bei, Geld auf neun verschiedene Fonds zu
+verteilen – Aktien, Anleihen, Gold, Immobilien, Rohstoffe –, lassen es dabei für
+jeden Kauf und Verkauf 1 € Gebühr zahlen wie bei Trade Republic, probieren das mit
+1.000 €, 10.000 € und 1.000.000 € aus und schauen, ob es besser ist als jemand, der
+einfach kauft und nichts mehr tut.
 
 ---
 
@@ -37,22 +38,65 @@ merkt er sich, welche Züge meistens Punkte bringen. Das nennt man
 
 ## 2. Die Zutaten
 
-**Das Geld:** 10.000 € Startkapital, am Anfang alles als Bargeld (Cash).
+### 2.1 Die neun Fonds
 
-**Die zwei Fonds** (ETFs – Körbe mit vielen Aktien, die man wie eine Aktie kauft):
+Ein **ETF** ist ein Korb mit vielen Wertpapieren, den man wie eine einzige Aktie
+kauft. Ein **ETC** ist fast dasselbe, nur für Rohstoffe wie Gold. Der Agent darf
+diese neun kaufen:
 
-| Kürzel | Was drin ist | Rolle bei uns |
+| Kürzel | Was drin ist | Anlageklasse | Preis pro Anteil Anfang 2024 |
+|---|---|---|---|
+| `SXR8` | die 500 größten Firmen der USA | Aktien | 454 € |
+| `XSX6` | 600 große Firmen aus Europa | Aktien | 115 € |
+| `IQQJ` | große Firmen aus Japan | Aktien | 15 € |
+| `IQQE` | Firmen aus Schwellenländern wie China, Indien, Brasilien | Aktien | 36 € |
+| `EUNH` | Schulden von Euro-Staaten (Staatsanleihen) | Anleihen | 112 € |
+| `D5BG` | Schulden von Euro-Firmen (Unternehmensanleihen) | Anleihen | 150 € |
+| `4GLD` | echtes Gold im Tresor | Gold | 61 € |
+| `IQQ6` | Immobilienfirmen weltweit | Immobilien | 21 € |
+| `EXXY` | Öl, Metalle, Getreide und mehr | Rohstoffe | 24 € |
+
+Alle werden an der deutschen Börse Xetra in Euro gehandelt. Es gibt also kein
+Wechselkurs-Problem.
+
+**Dazu kommt ein zehnter Fonds, den der Agent nicht kaufen darf:** `EUNL`, der
+MSCI World mit rund 1.400 großen Firmen aus Industrieländern. Er ist unser
+**„Markt"** (in unserer Planung: Benchmark B4, Aktien Welt). Mit ihm vergleichen
+wir den Agenten nur.
+
+### 2.2 Das Geld – drei Varianten
+
+Wir spielen das Ganze dreimal durch: mit **1.000 €**, mit **10.000 €** und mit
+**1.000.000 €** Startkapital. Am Anfang ist immer alles Bargeld.
+
+### 2.3 Die Gebühr
+
+Trade Republic verlangt **1 € pro Order**, egal ob man für 50 € oder für 5.000 €
+kauft. Das ist der Knackpunkt unseres Themas.
+
+### 2.4 Warum drei verschiedene Startkapitale?
+
+Weil die feste Gebühr je nach Geldmenge ganz unterschiedlich wehtut. Stell dir
+vor, jemand verteilt sein Geld gleichmäßig auf alle neun Fonds:
+
+| Startkapital | pro Fonds | 1 € Gebühr ist davon |
 |---|---|---|
-| `EUNL.DE` | iShares Core MSCI World – rund 1.400 große Firmen aus Industrieländern | Das ist unser **„Markt"** |
-| `IS3N.DE` | iShares Core MSCI EM IMI – Firmen aus Schwellenländern wie China, Indien, Brasilien | Die zweite Möglichkeit |
+| 1.000 € | 111 € | **0,9 %** |
+| 10.000 € | 1.111 € | 0,09 % |
+| 1.000.000 € | 111.111 € | 0,0009 % |
 
-Beide werden an der deutschen Börse Xetra in Euro gehandelt. Deshalb gibt es
-kein Wechselkurs-Problem.
+Bei 1.000 € frisst jede Order fast ein Prozent. Bei einer Million merkt man sie
+überhaupt nicht.
 
-**Die Gebühr:** Trade Republic verlangt **1 € pro Order**, egal ob man für 50 €
-oder für 5.000 € kauft. Das ist der Knackpunkt unseres Themas, dazu gleich mehr.
+Dazu kommt ein zweites Problem: **Es gibt nur ganze Anteile.** Ein Anteil `SXR8`
+kostet 454 €. Wer 1.000 € gleichmäßig auf neun Fonds verteilen will, hat pro Fonds
+nur 111 € – das reicht für keinen einzigen Anteil `SXR8`, `D5BG`, `XSX6` oder `EUNH`.
+Mit wenig Geld kann man also gar nicht so streuen, wie man möchte.
 
-**Die Kurse:** kommen kostenlos von Yahoo Finance, Januar 2016 bis September 2026.
+### 2.5 Die Kurse
+
+Kommen kostenlos von Yahoo Finance. Alle neun Fonds gibt es gemeinsam seit Mai 2010.
+Wir benutzen Januar 2016 bis September 2026.
 
 ---
 
@@ -60,60 +104,89 @@ oder für 5.000 € kauft. Das ist der Knackpunkt unseres Themas, dazu gleich me
 
 ### 3.1 Was der Agent sieht – der Zustand (*State*)
 
-Jeden Tag bekommt der Agent eine Liste mit **9 Zahlen**. Mehr weiß er nicht über
+Jeden Tag bekommt der Agent eine Liste mit **28 Zahlen**. Mehr weiß er nicht über
 die Welt:
 
-| Nr. | Zahl | Beispiel |
+| Wie viele | Zahl | Beispiel |
 |---|---|---|
-| 1 | Wie viel Bargeld habe ich? | 312,50 € |
-| 2–3 | Was kostet ein Anteil von jedem Fonds heute? | 127,14 € und 48,56 € |
-| 4–5 | Wie viele Anteile habe ich von jedem Fonds? | 40 und 95 |
-| 6–7 | **RSI** von jedem Fonds | 58 und 41 |
-| 8–9 | **MACD** von jedem Fonds | 0,8 und −0,2 |
+| 1 | Welcher Anteil meines Depots ist Bargeld? | 0,05 (also 5 %) |
+| 9 | Welcher Anteil meines Depots steckt in jedem Fonds? | 0,30 in `SXR8`, 0,00 in `4GLD`, … |
+| 9 | **RSI** von jedem Fonds, geteilt durch 100 | 0,58 |
+| 9 | **MACD** von jedem Fonds, geteilt durch seinen Kurs | 0,004 |
 
 Die zwei letzten Sorten nennt man **technische Indikatoren**. Sie fassen den
 Kursverlauf zusammen:
 
-- **RSI** (0 bis 100): Ging es in den letzten 30 Tagen eher rauf oder eher runter?
-  Über 70 heißt „ging viel rauf", unter 30 heißt „ging viel runter".
+- **RSI**: Ging es in den letzten 30 Tagen eher rauf oder eher runter? Über 0,7
+  heißt „ging viel rauf", unter 0,3 heißt „ging viel runter".
 - **MACD**: Ist der Kurs gerade schneller unterwegs als sonst? Positiv heißt
   „Schwung nach oben", negativ heißt „Schwung nach unten".
 
-Der Agent weiß **nicht**, was morgen passiert. Er sieht nur diese 9 Zahlen von heute.
+**Warum Anteile statt Euro?** Stell dir vor, der Agent sähe „Bargeld: 1.000.000".
+Mit so riesigen Zahlen kann ein neuronales Netz schlecht umgehen, und es würde
+bei einer Million ganz anders lernen als bei tausend Euro. Der Vergleich der drei
+Startkapitale wäre dann kaputt. Mit Anteilen sieht der Agent bei jedem Kapital
+dasselbe: „5 % Bargeld" ist bei 1.000 € und bei einer Million gleich.
+
+Wichtig: Nur **der Agent** sieht Anteile. Gekauft, verkauft und abgerechnet wird
+im Hintergrund weiter in echten Euro und ganzen Anteilen.
+
+Der Agent weiß **nicht**, was morgen passiert. Er sieht nur diese 28 Zahlen von heute.
 
 ### 3.2 Was der Agent tut – die Aktion (*Action*)
 
-Der Agent antwortet mit **2 Zahlen**, eine pro Fonds, jede zwischen −1 und +1.
+Der Agent antwortet mit **9 Zahlen**, eine pro Fonds, jede zwischen −1 und +1.
 
 - **+1** heißt: „So viel kaufen wie erlaubt."
 - **−1** heißt: „So viel verkaufen wie erlaubt."
 - **0** heißt: „Nichts tun."
 
-Die Zahl wird mal 100 genommen und abgerundet. **+0,37** wird zu „37 Anteile
-kaufen". Mehr als 100 Anteile auf einmal gehen nicht (`hmax = 100`).
+Die Zahl wird mit **`hmax`** malgenommen und abgerundet. Das Ergebnis ist die Zahl
+der Anteile. `hmax` hängt vom Startkapital ab:
+
+| Startkapital | `hmax` | Aktion +0,5 heißt |
+|---|---|---|
+| 1.000 € | 11 | 5 Anteile kaufen |
+| 10.000 € | 101 | 50 Anteile kaufen |
+| 1.000.000 € | 10.002 | 5.001 Anteile kaufen |
+
+`hmax` ist so gewählt, dass eine volle Aktion (+1) im billigsten Fonds ungefähr ein
+Neuntel des Startkapitals bewegt. Mit einem festen `hmax` von 100 bräuchte der
+Agent bei einer Million Wochen, bis das Geld investiert ist – bei 1.000 € könnte
+er dagegen mit einem Zug alles verpulvern.
 
 Reihenfolge an jedem Tag: **erst alle Verkäufe, dann alle Käufe.** So kann man
 mit dem Geld aus einem Verkauf am selben Tag etwas anderes kaufen.
 
-Es gibt nur **ganze Anteile**. Einen halben Anteil kann der Agent nicht kaufen,
-obwohl Trade Republic das eigentlich könnte. Das ist eine bewusste Vereinfachung.
+### 3.3 Die Totzone
 
-### 3.3 Die Punkte – die Belohnung (*Reward*)
+Weil abgerundet wird, passiert bei kleinen Aktionen **gar nichts**:
 
-> Belohnung = Depotwert heute − Depotwert gestern
+| Startkapital | `hmax` | Ab welcher Aktion entsteht 1 Anteil? |
+|---|---|---|
+| 1.000 € | 11 | ab ±0,091 |
+| 10.000 € | 101 | ab ±0,0099 |
+| 1.000.000 € | 10.002 | ab ±0,0001 |
 
-Depotwert heißt: Bargeld plus alle Anteile zum heutigen Kurs. Die Zahl wird noch
-mit 0,0001 malgenommen, damit sie klein und handlich ist – am Prinzip ändert
-das nichts.
+Bei 1.000 € ist also fast ein Zehntel des ganzen Knopfes „tot". Ein vorsichtiger
+Agent, der nur ein bisschen kaufen möchte, kauft bei wenig Geld schlicht nichts.
+Das haben wir beim Testen gesehen (siehe 11.3).
+
+### 3.4 Die Punkte – die Belohnung (*Reward*)
+
+> Belohnung = (Depotwert heute − Depotwert gestern) × 100 ÷ Startkapital
+
+Das heißt einfach: **1 % Gewinn an einem Tag gibt 1 Punkt** – egal ob man 1.000 €
+oder eine Million hat. So lernen alle drei Varianten gleich stark.
 
 Wichtig: Die Belohnung zählt **nur Geld**. Ob das Depot dabei stark wackelt, ist
 dem Agenten egal. Man sagt: Der Agent ist **risikoneutral**. Das erklärt später
 einige Ergebnisse.
 
-### 3.4 Die Lernregel – PPO
+### 3.5 Die Lernregel – PPO
 
-Der Agent ist ein kleines **neuronales Netz**: Oben kommen die 9 Zahlen rein,
-unten kommen die 2 Zahlen raus, dazwischen liegen viele einstellbare Rädchen
+Der Agent ist ein kleines **neuronales Netz**: Oben kommen die 28 Zahlen rein,
+unten kommen die 9 Zahlen raus, dazwischen liegen viele einstellbare Rädchen
 (Gewichte).
 
 **PPO** (*Proximal Policy Optimization*) ist die Regel, wie die Rädchen verstellt
@@ -128,16 +201,21 @@ werden:
    Pech hatte.
 4. Wieder von vorne.
 
+Beim Lernen probiert der Agent **mit Zufall** aus – dann landen seine Aktionen oft
+weit weg von 0 und er handelt. In der Prüfung dagegen nimmt er **ohne Zufall**
+immer seine beste Idee. Ist diese Idee nur ein zaghaftes „ein bisschen kaufen",
+fällt sie bei wenig Geld in die Totzone.
+
 Wir benutzen PPO nicht selbst programmiert, sondern aus der Bibliothek
 **Stable-Baselines3**. FinRL ist nur die Hülle drumherum.
 
-### 3.5 Wie lange gelernt wird – Timesteps
+### 3.6 Wie lange gelernt wird – Timesteps
 
 Ein **Timestep** ist ein Spielzug, also ein Tag. Wir trainieren **60.000 Timesteps**.
-Der Übungszeitraum hat 1.779 Handelstage. Der Agent spielt die Jahre 2016 bis
+Der Übungszeitraum hat 1.778 Handelstage. Der Agent spielt die Jahre 2016 bis
 2022 also **ungefähr 34 Mal** komplett durch.
 
-### 3.6 Der Zufall – Seeds
+### 3.7 Der Zufall – Seeds
 
 Beim Lernen ist Zufall im Spiel: Die Rädchen starten mit zufälligen Werten, und
 der Agent probiert zufällig Dinge aus. Ein **Seed** ist die Startzahl für diesen
@@ -148,6 +226,9 @@ Warum? Stell dir vor, du wirfst eine Münze einmal und sie zeigt Kopf. Daraus
 folgt nicht, dass die Münze immer Kopf zeigt. Genauso kann ein einzelner Agent
 Glück gehabt haben. Erst wenn **viele** Agenten dasselbe tun, ist es ein
 Ergebnis.
+
+Insgesamt sind es **6 Versuche** (3 Startkapitale × täglich/monatlich) mit je 8
+Agenten, also **48 Agenten**.
 
 ---
 
@@ -173,7 +254,7 @@ Wer oft kleine Mengen hin und her schiebt, zahlt drauf.
 
 FinRL hat zwei Stellen, an denen gekauft und verkauft wird: `_buy_stock()` und
 `_sell_stock()`. Unsere Klasse `TradeRepublicEnv` erbt alles von FinRL und
-ersetzt **nur diese beiden Stellen**.
+ersetzt **diese beiden Stellen**.
 
 **Kaufen, Schritt für Schritt:**
 
@@ -220,9 +301,11 @@ Wie in der Schule:
 
 | Zeitraum | Heißt | Tage | Wozu |
 |---|---|---|---|
-| 2016 – 2022 | **Training** | 1.779 | Hier übt der Agent. Nur diese Kurse sieht er beim Lernen. |
+| 2016 – 2022 | **Training** | 1.778 | Hier übt der Agent. Nur diese Kurse sieht er beim Lernen. |
 | 2023 | **Validierung** | 255 | Die Probeklausur. Neue Aufgaben, aber noch nicht die echte Prüfung. |
-| 2024 – 08.09.2026 | **Test** | 680 | Die echte Prüfung. Diese Kurse hat der Agent nie gesehen. |
+| 2024 – 08.09.2026 | **Test** | 678 | Die echte Prüfung. Diese Kurse hat der Agent nie gesehen. |
+
+Gezählt werden nur Tage, an denen **alle neun** Fonds einen Kurs haben.
 
 Warum so streng getrennt? Ein Schüler, der die Prüfungsaufgaben vorher kennt,
 schreibt eine 1 – und hat trotzdem nichts gelernt. Das nennt man **Overfitting**
@@ -241,16 +324,20 @@ nicht mehr dazugehört – der letzte Prüfungstag ist also der 08.09.
 Ein Ergebnis wie „17.000 € am Ende" sagt allein nichts. Es kommt darauf an, was
 man **ohne** den Agenten gehabt hätte. Deshalb laufen im Prüfungszeitraum drei
 einfache Vergleichs-Strategien mit – alle mit denselben Regeln: ganze Anteile,
-1 € pro Order.
+1 € pro Order, dasselbe Startkapital.
 
-| Name | Was die Strategie macht | Wie viele Orders |
-|---|---|---|
-| **1/N Buy & Hold** | Am ersten Tag je 5.000 € in beide Fonds, danach nichts mehr. | 2 |
-| **100 % MSCI World Buy & Hold** | Am ersten Tag alles in `EUNL.DE`, danach nichts mehr. Das ist **„der Markt"**. | 1 |
-| **1/N alle 21 Tage** | Jeden 21. Tag wieder auf halbe-halbe zurückschieben. | etwa 48 |
+| Name | Was die Strategie macht |
+|---|---|
+| **1/N Buy & Hold** | Am ersten Tag gleich viel Geld in jeden der neun Fonds, danach nichts mehr. |
+| **Markt: MSCI World (`EUNL`)** | Am ersten Tag alles in den MSCI World, danach nichts mehr. |
+| **1/N alle 21 Tage** | Jeden 21. Tag wieder auf gleich viel in jedem Fonds zurückschieben. |
 
 „1/N" heißt einfach: gleich viel in jeden Topf. Klingt dumm, ist aber in der
 Forschung erstaunlich schwer zu schlagen.
+
+**Achtung bei 1.000 €:** Wie in 2.4 erklärt, reicht es dort nicht für alle neun.
+„1/N" kauft mit 1.000 € nur fünf Fonds; die vier teuren bleiben leer. Die
+Strategie heißt trotzdem so, sie kann es nur nicht besser.
 
 ---
 
@@ -264,10 +351,12 @@ Forschung erstaunlich schwer zu schlagen.
 | **Sharpe** | Wie viel Rendite gibt es pro Wackeln? | Durchschnittsrendite geteilt durch Vola, aufs Jahr gerechnet. Über 1 ist gut. Einen risikofreien Zins ziehen wir nicht ab. |
 | **Sortino** | Wie viel Rendite pro Wackeln **nach unten**? | Wie Sharpe, aber nur schlechte Tage zählen als Wackeln. |
 | **Max. Drawdown** | Wie tief war das tiefste Loch? | Größter Absturz vom bisherigen Höchststand. −20 % heißt: Irgendwann war das Depot 20 % unter seinem bisherigen Rekord. |
-| **Orders / Gebühren** | Wie oft gehandelt, wie viel gezahlt? | Jede ausgeführte Order kostet 1 €. |
+| **Orders / Gebühren** | Wie oft gehandelt, wie viel gezahlt? | Jede ausgeführte Order kostet 1 €. Bei verschiedenen Startkapitalen vergleichen wir die Gebühren **in Prozent** des Startkapitals. |
 
 **Die wichtigste Zahl ist Sharpe.** Ein Agent, der 5 % mehr verdient, aber
 doppelt so stark wackelt, ist nicht besser – er hat nur mehr Risiko genommen.
+Aber Vorsicht: Wer viel Bargeld hält, wackelt wenig und bekommt dadurch auch einen
+guten Sharpe, ohne viel zu verdienen. Man muss immer mehrere Zahlen anschauen.
 
 ---
 
@@ -277,7 +366,7 @@ Stell dir eine Küche vor.
 
 | Datei | In der Küche wäre das … | Aufgabe |
 |---|---|---|
-| `tr_env.py` | **das Rezept** | Die Spielregeln mit Fixgebühr. Unser eigener Beitrag. |
+| `tr_env.py` | **das Rezept** | Die Spielregeln: Fixgebühr, Handelstakt, und was der Agent sieht. Unser eigener Beitrag. |
 | `run_training.py` | **der Koch** | Holt die Zutaten, lässt den Agenten lernen, prüft ihn, vergleicht, schreibt alles auf. |
 | `eval_saved.py` | **der Vorkoster** | Nimmt einen fertigen Agenten und lässt ihn unter anderen Gebühren spielen – ohne neu zu lernen. |
 | `vergleich.py` | **der Kritiker** | Legt zwei Läufe nebeneinander und rechnet aus, ob der Unterschied echt oder Zufall ist. |
@@ -292,10 +381,10 @@ Stell dir eine Küche vor.
 
 | Datei | Inhalt |
 |---|---|
-| `config.json` | Alle Einstellungen, mit denen der Lauf gestartet wurde. |
+| `config.json` | Alle Einstellungen des Laufs – auch das ausgerechnete `hmax`, die Belohnungs-Skalierung und der Markt-Fonds. |
 | `ergebnisse.csv` | Alle Kennzahlen für jeden Seed und jeden Benchmark. |
 | `depotwert.png` | Bild: Depotwert aller Agenten und Benchmarks im Prüfungszeitraum. |
-| `actions_seed42.csv` … | Für jeden Prüfungstag: wie viele Anteile wirklich gekauft (+) oder verkauft (−) wurden. |
+| `actions_seed42.csv` … | Für jeden Prüfungstag und jeden Fonds: wie viele Anteile wirklich gekauft (+) oder verkauft (−) wurden. |
 | `ppo_seed42.zip` … | Der trainierte Agent selbst – die eingestellten Rädchen. |
 
 ---
@@ -303,26 +392,27 @@ Stell dir eine Küche vor.
 ## 9. Einmal alles durch: Was passiert bei `run_training.py`?
 
 ```bash
-.venv\Scripts\python.exe run_training.py --timesteps 60000 --seeds 42 43 44 45 46 47 48 49 --fee 1 --rebalance 1 --end 2026-09-09 --tag daily_fee1
+.venv\Scripts\python.exe run_training.py --seeds 42 43 44 45 46 47 48 49 --fee 1 --initial 10000 --rebalance 1 --end 2026-09-09 --tag k10000_daily
 ```
 
-1. **Ordner anlegen.** In `runs/` entsteht ein Ordner mit Datum, Uhrzeit und dem
-   Namen hinter `--tag`. Die Einstellungen landen in `config.json`.
-2. **Kurse holen.** Liegen sie schon in `data/`, werden sie von dort genommen,
-   sonst von Yahoo geladen. Tage, an denen nicht beide Fonds gehandelt wurden,
+1. **Kurse holen.** Liegen sie schon in `data/`, werden sie von dort genommen,
+   sonst von Yahoo geladen. Tage, an denen nicht alle neun Fonds gehandelt wurden,
    fliegen raus.
-3. **Indikatoren ausrechnen.** RSI und MACD für jeden Fonds und jeden Tag.
-4. **In drei Zeiträume schneiden.** Training, Validierung, Test.
-5. **Benchmarks ausrechnen.** Die drei Vergleichs-Strategien im Prüfungszeitraum.
-6. **Für jeden Seed:**
+2. **Indikatoren ausrechnen.** RSI und MACD für jeden Fonds und jeden Tag.
+3. **In drei Zeiträume schneiden.** Training, Validierung, Test.
+4. **`hmax` ausrechnen** aus Startkapital und dem billigsten Fonds am ersten Übungstag.
+5. **Ordner anlegen.** In `runs/` entsteht ein Ordner mit Datum, Uhrzeit und dem
+   Namen hinter `--tag`. Die Einstellungen landen in `config.json`.
+6. **Benchmarks ausrechnen.** Dafür werden auch die Kurse des Markt-Fonds `EUNL` geladen.
+7. **Für jeden Seed:**
    1. Spielbrett mit Fixgebühr aufbauen, nur mit den Trainingskursen.
    2. Neuen Agenten mit zufälligen Rädchen erzeugen.
    3. 60.000 Tage lang spielen und lernen.
    4. Agenten als `ppo_seedXX.zip` speichern.
-   5. Agenten die Probeklausur (2023) schreiben lassen – ohne Lernen, nur spielen.
-   6. Agenten die Prüfung (2024–2026) schreiben lassen – ohne Lernen, nur spielen.
+   5. Agenten die Probeklausur (2023) schreiben lassen – ohne Lernen, ohne Zufall.
+   6. Agenten die Prüfung (2024–2026) schreiben lassen – ohne Lernen, ohne Zufall.
    7. Kennzahlen, Orders und Gebühren ausrechnen und ausgeben.
-7. **Alles aufschreiben.** Tabelle in `ergebnisse.csv`, Bild in `depotwert.png`.
+8. **Alles aufschreiben.** Tabelle in `ergebnisse.csv`, Bild in `depotwert.png`.
 
 ---
 
@@ -335,10 +425,11 @@ Stell dir eine Küche vor.
 Dann öffnet sich im Browser `http://localhost:8501`. Die Seite ist nur auf dem
 eigenen Rechner erreichbar.
 
-**Links** stellt man ein, welchen Agenten man sehen will: Lauf, Seed, Probeklausur
-oder Prüfung, und wer „der Markt" ist. Gebühr und Handelstakt kann man auch
-verstellen – dann spielt **derselbe** Agent unter anderen Regeln, und die Seite
-zeigt eine gelbe Warnung. Er hat unter diesen Regeln nie gelernt.
+**Links** stellt man ein, welchen Agenten man sehen will: Lauf (also Startkapital
+und Takt), Seed, Probeklausur oder Prüfung, und wer „der Markt" ist. Gebühr und
+Handelstakt kann man auch verstellen – dann spielt **derselbe** Agent unter
+anderen Regeln, und die Seite zeigt eine gelbe Warnung. Er hat unter diesen
+Regeln nie gelernt.
 
 **Oben** stehen vier große Zahlen: Endwert, Sharpe, tiefstes Loch und Orders –
 jeweils mit dem Unterschied zum Markt. Darunter die Kennzahlen-Tabelle.
@@ -348,32 +439,33 @@ jeweils mit dem Unterschied zum Markt. Darunter die Kennzahlen-Tabelle.
 | Reiter | Was man sieht | Wofür im Referat |
 |---|---|---|
 | **Depotwert** | Wie sich das Geld von Agent, Markt und 1/N entwickelt. Darunter: Liegt der Agent vor oder hinter dem Markt? | „Ist er besser?" |
-| **Trades** | Kurse beider Fonds mit Dreiecken: ▲ blau = gekauft, ▼ rot = verkauft. Darunter das Orderbuch mit jeder einzelnen Order. Dazu, wie oft der Agent handeln **wollte**, es aber nicht ging. | „Was hat er getan?" |
-| **Depot** | Wie viel Bargeld und wie viel in jedem Fonds steckt, über die Zeit. | „Wie war er aufgestellt?" |
+| **Trades** | Eine Tabelle mit Käufen, Verkäufen und Gebühren für jeden der neun Fonds. Darunter der Kursverlauf eines Fonds, den man auswählt, mit Dreiecken: ▲ blau = gekauft, ▼ rot = verkauft. Dann das Orderbuch mit jeder einzelnen Order. | „Was hat er getan?" |
+| **Depot** | Wie viel Bargeld und wie viel in Aktien, Anleihen, Gold, Immobilien und Rohstoffen steckt, über die Zeit. Darunter der durchschnittliche Anteil jedes Fonds. | „Wie war er aufgestellt?" |
 | **Was hat er gelernt?** | Siehe unten. | „Warum?" |
 
 **Der Reiter „Was hat er gelernt?"** hat drei Teile:
 
-1. **Kurzdiagnose.** Die Seite sortiert den Agenten in eine von drei Schubladen:
+1. **Kurzdiagnose.** Die Seite sortiert den Agenten in eine von vier Schubladen:
+   - *Kein Handel*: keine einzige Order, alles blieb Bargeld.
    - *Praktisch Buy & Hold*: einmal gekauft, dann Ruhe.
    - *Dauerhandel*: im Schnitt jeden zweiten Tag eine Order pro Fonds oder mehr.
    - *Gelegentliches Umschichten*: alles dazwischen.
 
-   Außerdem sagt sie, welcher Vergleichs-Strategie der Agent am ähnlichsten ist.
-   Liegt er weniger als 1 % daneben, hat er im Grunde nur diese Strategie
-   nachgebaut.
-2. **Punktwolke.** Jeder Punkt ist ein Tag. Nach rechts: ein Indikator, zum
-   Beispiel RSI. Nach oben: was der Agent tun wollte. Sieht man ein Muster –
-   etwa „bei hohem RSI will er verkaufen" –, hat er etwas mit diesem Indikator
-   gelernt. Sieht man keins, ist ihm der Indikator egal.
-3. **Policy-Sonde.** Man nimmt einen Tag, friert alle 9 Zahlen ein und dreht nur
-   an **einer** – zum Beispiel RSI von 20 bis 80. Die Linie zeigt, wie der Agent
-   darauf reagiert. Flache Linie: Die Zahl interessiert ihn nicht. Steile Linie:
-   Die Zahl ist ihm wichtig.
+   Außerdem sagt sie, welcher Fonds im Schnitt die größte Position war, welcher
+   Vergleichs-Strategie der Agent am ähnlichsten ist und wie breit die Totzone war.
+2. **Punktwolke.** Jeder Punkt ist ein Tag. Nach rechts: ein Indikator eines Fonds,
+   zum Beispiel RSI/100. Nach oben: was der Agent mit diesem Fonds tun wollte.
+   Sieht man ein Muster – etwa „bei hohem RSI will er verkaufen" –, hat er etwas mit
+   diesem Indikator gelernt. Sieht man keins, ist ihm der Indikator egal.
+3. **Policy-Sonde.** Man nimmt einen Tag, friert alle 28 Zahlen ein und dreht nur
+   an **einer** – zum Beispiel am RSI von `SXR8`. Die blaue Linie zeigt, wie der
+   Agent beim gewählten Fonds darauf reagiert, die grauen Linien, wie er bei allen
+   anderen Fonds reagiert. Flache Linie: Die Zahl interessiert ihn nicht. Steile
+   Linie: Die Zahl ist ihm wichtig.
 
 ---
 
-## 11. Zwei Stolperfallen, die wir gelöst haben
+## 11. Drei Stolperfallen, die wir gelöst haben
 
 ### 11.1 FinRL will Pakete, die wir nicht brauchen
 
@@ -401,112 +493,22 @@ gesetzt. Wer danach nachschaut, sieht 0.
 **Lösung:** Unser Spielbrett schreibt sich die Zähler kurz vor dem Aufräumen auf
 einen Zettel (`last_episode_cost`, `last_episode_trades`).
 
+### 11.3 Ein ungelernter Agent handelt bei 1.000 € gar nicht
+
+Beim Kurztest mit 1.000 € hat der Agent in der Prüfung **keine einzige Order**
+gemacht. Kein Fehler, sondern die Totzone aus 3.3: Seine Aktionen lagen im
+Schnitt bei ±0,026, für einen Anteil hätte er ±0,091 gebraucht. Beim Lernen mit
+Zufall lagen dagegen 93 % seiner Aktionen über der Schwelle – er hat also sehr
+wohl gehandelt, nur in der Prüfung ohne Zufall nicht mehr.
+
+**Was wir daraus mitnehmen:** Wenn ein Agent mit wenig Kapital nicht handelt,
+muss man nachsehen, ob er „nichts tun" gelernt hat – oder ob er nur zu zaghaft ist.
+
 ---
 
 ## 12. Die Ergebnisse
 
-Zwei Läufe, beide mit 1 € pro Order und je 8 Agenten (Seeds 42 bis 49):
-
-- **`daily_fee1`** – der Agent darf jeden Tag handeln.
-- **`monthly_fee1`** – der Agent darf nur jeden 21. Handelstag handeln.
-
-Alle Zahlen stammen aus der **Prüfung** (02.01.2024 bis 08.09.2026). Diese Kurse
-hat kein Agent beim Lernen gesehen.
-
-### 12.1 Vorweg: Gleiche Zutaten, gleicher Kuchen
-
-Die neu trainierten Agenten im Tageslauf sind **exakt dieselben** wie die alten,
-auf den Euro genau. Das ist kein Fehler. Gleiche Kurse, gleiche Einstellungen und
-gleiche Seeds ergeben gleiche Rädchen – wie ein Rezept, das jedes Mal genau
-gleich gelingt. Für das Referat ist das sogar gut: Jeder kann unsere Zahlen
-nachrechnen und bekommt dasselbe heraus.
-
-### 12.2 Die Zahlen
-
-| | Sharpe | Endwert | Orders |
-|---|---|---|---|
-| **Agenten täglich** (Mittel von 8) | 1,22 | 16.007 € | 2 bis 681 |
-| **Agenten monatlich** (Mittel von 8) | 1,23 | 15.235 € | 9 bis 41 |
-| 1/N Buy & Hold | **1,32** | **16.144 €** | 2 |
-| 100 % MSCI World | 1,26 | 15.435 € | 1 |
-
-Alle 16 Agenten einzeln:
-
-| Seed | täglich: Endwert | Sharpe | Orders | monatlich: Endwert | Sharpe | Orders |
-|---|---|---|---|---|---|---|
-| 42 | 17.204 € | 1,25 | 24 | 15.940 € | 1,13 | 9 |
-| 43 | 16.037 € | 1,34 | 16 | 14.610 € | 1,20 | 11 |
-| 44 | 15.446 € | 1,27 | 2 | 17.149 € | 1,30 | 24 |
-| 45 | 16.902 € | 1,21 | 30 | 16.171 € | 1,24 | 39 |
-| 46 | 16.446 € | 1,16 | 270 | 14.797 € | 1,16 | 9 |
-| 47 | 15.008 € | 1,20 | 193 | 14.252 € | 1,11 | 40 |
-| 48 | 15.822 € | 1,09 | 681 | 13.824 € | **1,50** | 41 |
-| 49 | 15.191 € | 1,22 | 18 | 15.135 € | 1,21 | 12 |
-
-### 12.3 Was das heißt – in sechs Sätzen
-
-**1. Kein Agent ist verlässlich besser als „halbe-halbe kaufen und liegen lassen".**
-Im Mittel haben die Agenten einen Sharpe von 1,22 bzw. 1,23, die langweilige
-1/N-Strategie hat 1,32. Nur 2 von 16 Agenten liegen darüber, und einer davon nur
-ganz knapp (1,34).
-
-**2. Viele Agenten haben gelernt: „Alles in einen Topf."**
-Täglich Seed 42 und Seed 48 hatten die ganze Zeit rund 98 % im
-Schwellenländer-Fonds (`IS3N.DE`). Täglich Seed 44 hatte 99,5 % im MSCI World
-(`EUNL.DE`). Das ist keine schlaue Handelsstrategie, sondern eine Wette auf
-einen einzigen Fonds. Welcher Fonds es wird, entscheidet der Zufall beim Lernen.
-
-**3. Der Zufall entscheidet mit.**
-Mit genau denselben Einstellungen endet ein Agent bei 15.008 €, ein anderer bei
-17.204 €. Nur der Seed ist anders. Wer nur einen einzigen Agenten zeigt, zeigt
-also vor allem, ob er Glück hatte. Deshalb trainieren wir 8.
-
-**4. Täglich handeln macht manche Agenten hektisch.**
-Täglich Seed 48 hat 681 Mal gehandelt, also 681 € Gebühren gezahlt. Seed 46 und
-47 kamen auf 270 und 193 Orders. Beim Monatstakt hat kein Agent mehr als 41 Mal
-gehandelt.
-
-**5. Was kostet die Gebühr wirklich?**
-Um das zu messen, lassen wir **dieselben** Agenten die Prüfung noch einmal ohne
-Gebühr spielen (`eval_saved.py --fee 0`). Der Unterschied ist das, was die Gebühr
-gekostet hat:
-
-| Seed (täglich) | Orders | So viel mehr Geld ohne Gebühr |
-|---|---|---|
-| 44 | 2 | 2 € |
-| 43 | 16 | 40 € |
-| 49 | 18 | 83 € |
-| 42 | 24 | 53 € |
-| 45 | 30 | 66 € |
-| 47 | 193 | 467 € |
-| 46 | 270 | 435 € |
-| 48 | 681 | **842 €** |
-
-Faustregel: Wer wenig handelt, merkt die Gebühr nicht. Wer viel handelt, verliert
-Hunderte Euro. **Nicht die Größe des Depots entscheidet, sondern wie oft man
-handelt.**
-
-Beim Monatstakt sind die Gebühren klein. Trotzdem gibt es dort Überraschungen:
-Monatlich Seed 47 zahlt nur 40 € Gebühren, hätte ohne Gebühr aber 603 € mehr.
-Monatlich Seed 48 hätte ohne Gebühr sogar 421 € **weniger**. Wie geht das? Die
-Gebühr bestimmt mit, welche Orders überhaupt stattfinden – eine Order, die sich
-mit 1 € Gebühr gerade nicht lohnt, findet ohne Gebühr statt. Danach sieht das
-ganze Depot anders aus, und dieser andere Weg kann besser oder schlechter
-ausgehen. Das nennt man **Pfadabhängigkeit**.
-
-**6. Der beste Sharpe ist nicht automatisch das meiste Geld.**
-Monatlich Seed 48 hat den besten Sharpe von allen (1,50) – und gleichzeitig am
-wenigsten Geld (13.824 €). Der Grund: Er hatte im Schnitt **40 % Bargeld** im
-Depot. Bargeld wackelt nicht, also wackelt das Depot wenig, also ist der Sharpe
-hoch. Aber Bargeld wächst auch nicht. Man muss immer mehrere Kennzahlen zusammen
-anschauen.
-
-### 12.4 Was man im Referat sagen kann
-
-> Unser PPO-Agent schlägt eine einfache 1/N-Strategie nicht verlässlich. Die
-> meisten Agenten lernen, einen einzelnen Fonds zu halten, und welcher das ist,
-> hängt vom Zufall ab. Die feste Ordergebühr von Trade Republic wird erst teuer,
-> wenn ein Agent viel handelt – täglicher Handel führt dazu, monatlicher nicht.
+> *Wird eingetragen, sobald die sechs Läufe fertig sind.*
 
 ---
 
@@ -514,9 +516,16 @@ anschauen.
 
 Ehrlich sein gehört zum Referat. Diese Dinge sind vereinfacht oder fehlen:
 
-- **Nur ganze Anteile.** Trade Republic kann auch Bruchstücke.
+- **Nur ganze Anteile.** Trade Republic kann auch Bruchstücke. Bei 1.000 € ist
+  das eine echte Einschränkung, weil teure Fonds unerreichbar sind.
+- **Die Totzone.** Bei wenig Kapital gehen zaghafte Entscheidungen verloren.
+- **`hmax` zählt Anteile, nicht Euro.** Eine volle Aktion bedeutet bei `SXR8`
+  (454 €) viel mehr Geld als bei `IQQJ` (15 €).
 - **Kein Spread.** Beim echten Kauf ist der Kaufpreis immer etwas höher als der
   Verkaufspreis. Dafür gibt es keine kostenlosen historischen Daten.
+- **Tage ohne Umsatz.** Manche Fonds wurden an einzelnen Tagen gar nicht gehandelt
+  (`EUNH` an über 600 Tagen seit 2009). Yahoo meldet dann trotzdem einen Kurs.
+  Wir tun so, als hätte man dort handeln können.
 - **Keine Steuern.**
 - **Nur eine Prüfung.** Besser wäre, mehrere Prüfungszeiträume hintereinander
   zu testen (Walk-Forward).
@@ -532,22 +541,28 @@ Ehrlich sein gehört zum Referat. Diese Dinge sind vereinfacht oder fehlen:
 | Wort | Einfach gesagt |
 |---|---|
 | **Agent** | Das lernende Programm. |
-| **Aktion** | Was der Agent an einem Tag tut: zwei Zahlen zwischen −1 und +1. |
+| **Aktion** | Was der Agent an einem Tag tut: 9 Zahlen zwischen −1 und +1. |
+| **Anlageklasse** | Die Sorte eines Fonds: Aktien, Anleihen, Gold, Immobilien, Rohstoffe. |
+| **Anleihe** | Man leiht einem Staat oder einer Firma Geld und bekommt Zinsen. |
 | **Benchmark** | Eine einfache Vergleichs-Strategie. |
 | **Buy & Hold** | Einmal kaufen, liegen lassen. |
 | **Depotwert** | Bargeld plus alle Anteile zum aktuellen Kurs. |
 | **Episode** | Einmal den Übungszeitraum von vorne bis hinten durchspielen. |
-| **ETF** | Ein Korb mit vielen Aktien, den man wie eine Aktie kauft. |
+| **ETF / ETC** | Ein Korb mit vielen Wertpapieren (ETF) oder mit einem Rohstoff wie Gold (ETC), den man wie eine Aktie kauft. |
 | **FinRL** | Eine Bibliothek, die Börsen-Spielbretter für Reinforcement Learning bereitstellt. |
 | **Fixgebühr** | Immer gleich viel Gebühr pro Order, egal wie groß. |
+| **`hmax`** | Wie viele Anteile eine volle Aktion (+1) höchstens bedeutet. |
 | **Indikator** | Eine Zahl, die den Kursverlauf zusammenfasst (RSI, MACD). |
+| **Markt** | Bei uns der MSCI World (`EUNL`): alles in einen breiten Welt-Aktienfonds. |
 | **Overfitting** | Auswendig lernen statt verstehen. |
-| **Policy** | Die gelernte Strategie: „Bei diesen 9 Zahlen tue ich das." |
+| **Policy** | Die gelernte Strategie: „Bei diesen 28 Zahlen tue ich das." |
 | **PPO** | Die Lernregel: kleine, vorsichtige Verbesserungen. |
 | **Rebalancing** | Das Depot wieder auf die gewünschte Aufteilung zurückschieben. |
-| **Reward** | Die Punkte: wie viel das Depot an einem Tag gewonnen oder verloren hat. |
+| **Reward** | Die Punkte: 1 Punkt pro 1 % Tagesgewinn. |
 | **Seed** | Die Startzahl für den Zufall. Gleicher Seed, gleiches Ergebnis. |
-| **State** | Die 9 Zahlen, die der Agent jeden Tag sieht. |
+| **Startkapital** | Das Geld am ersten Tag: bei uns 1.000 €, 10.000 € oder 1.000.000 €. |
+| **State** | Die 28 Zahlen, die der Agent jeden Tag sieht. |
 | **Timestep** | Ein Spielzug, also ein Tag. |
+| **Totzone** | Aktionen, die so klein sind, dass abgerundet 0 Anteile herauskommen. |
 | **Turnover** | Wie viel gehandelt wird. |
 | **Vieltrader** | Ein Agent, der ständig handelt – bei Fixgebühren teuer. |

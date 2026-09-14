@@ -1,16 +1,14 @@
 """Zwei Laeufe gegeneinander auswerten - Schwerpunkt Handelsaktivitaet.
 
-Beantwortet die Frage, wegen der wir auf 8 Seeds hochgegangen sind:
-Wie oft rutscht ein Agent ins Dauerhandeln, mit und ohne Ordergebuehr?
-
-Der Vergleich ist ueber die Seeds gepaart (beide Laeufe benutzen dieselben Seeds,
-dieselben Daten, dieselben Splits) - der einzige Unterschied ist die Gebuehr.
-Bei n = 8 ist das trotzdem eine Indikation und kein Beweis; die Teststatistik
-steht deshalb bewusst neben der Streuung und nicht an ihrer Stelle.
+Der Vergleich ist ueber die Seeds gepaart: Beide Laeufe benutzen dieselben Seeds,
+dieselben Daten und dieselben Splits. Was sich unterscheidet, steht im Kopf der
+Ausgabe (Startkapital, Gebuehr, Handelstakt).
+Bei n = 8 ist das eine Indikation und kein Beweis; die Teststatistik steht deshalb
+bewusst neben der Streuung und nicht an ihrer Stelle.
 
 Beispiel
 --------
-    python vergleich.py --a runs/20260910-*_fee1_8seeds --b runs/20260910-*_fee0_8seeds
+    python vergleich.py --a "runs/*_k10000_daily" --b "runs/*_k10000_monthly"
 """
 from __future__ import annotations
 
@@ -26,58 +24,68 @@ import pandas as pd
 CHURN_SCHWELLE = 0.5
 
 
-def lade(muster: str) -> tuple[pd.DataFrame, dict, str]:
+def lade(muster: str) -> tuple[pd.DataFrame, dict, Path]:
     treffer = sorted(glob.glob(muster))
     if not treffer:
         raise SystemExit(f"Kein Lauf gefunden fuer: {muster}")
     run = Path(treffer[-1])
     cfg = json.loads((run / "config.json").read_text(encoding="utf-8"))
     d = pd.read_csv(run / "ergebnisse.csv")
-    return d[d.Split == "test"].copy(), cfg, run.name
+    return d[d.Split == "test"].copy(), cfg, run
 
 
-def kennzahlen(d: pd.DataFrame, cfg: dict, handelstage: int) -> pd.DataFrame:
+def handelstage(run: Path) -> int:
+    """Zahl der Handelsschritte im Testzeitraum, aus einer Orderliste abgelesen."""
+    listen = sorted(run.glob("actions_seed*.csv"))
+    if not listen:
+        raise SystemExit(f"Keine Orderliste in {run}")
+    return len(pd.read_csv(listen[0]))
+
+
+def kennzahlen(d: pd.DataFrame, cfg: dict, tage: int) -> pd.DataFrame:
     ppo = d[d.Strategie.str.startswith("PPO")].copy()
-    n_assets = len(cfg["tickers"])
-    ppo["Orders/Tag"] = ppo.Orders / (handelstage * n_assets)
+    ppo["Orders/Tag"] = ppo.Orders / (tage * len(cfg["tickers"]))
     ppo["Churning"] = ppo["Orders/Tag"] >= CHURN_SCHWELLE
+    ppo["Gebuehren %"] = ppo.Gebuehren / cfg["initial"]
     return ppo
+
+
+def kopf(cfg: dict) -> str:
+    return (f"Start {cfg['initial']:,.0f} EUR, Gebuehr {cfg['fee']:.2f} EUR, "
+            f"Handeln alle {cfg['rebalance']} T, {len(cfg['tickers'])} Titel").replace(",", ".")
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--a", required=True, help="Lauf A (Glob), z. B. mit Gebuehr")
-    p.add_argument("--b", required=True, help="Lauf B (Glob), z. B. ohne Gebuehr")
+    p.add_argument("--a", required=True, help="Lauf A (Glob)")
+    p.add_argument("--b", required=True, help="Lauf B (Glob)")
     args = p.parse_args()
 
-    da, cfga, namea = lade(args.a)
-    db, cfgb, nameb = lade(args.b)
+    da, cfga, runa = lade(args.a)
+    db, cfgb, runb = lade(args.b)
+    a = kennzahlen(da, cfga, handelstage(runa))
+    b = kennzahlen(db, cfgb, handelstage(runb))
 
-    # Handelstage aus den Benchmark-Kurven ableiten ist unnoetig - beide Laeufe
-    # nutzen denselben Testzeitraum, wir zaehlen ihn aus einer Aktionsliste.
-    handelstage = 679
+    print(f"A = {runa.name}  ({kopf(cfga)})")
+    print(f"B = {runb.name}  ({kopf(cfgb)})\n")
 
-    a = kennzahlen(da, cfga, handelstage)
-    b = kennzahlen(db, cfgb, handelstage)
-
-    print(f"A = {namea}  (Gebuehr {cfga['fee']:.2f} EUR)")
-    print(f"B = {nameb}  (Gebuehr {cfgb['fee']:.2f} EUR)\n")
-
-    for name, d in (("A", a), ("B", b)):
+    for name, d, roh in (("A", a, da), ("B", b, db)):
         print(f"--- Lauf {name} ---")
-        t = d[["Strategie", "Endwert", "Sharpe", "MaxDD", "Orders", "Orders/Tag", "Churning"]]
+        t = d[["Strategie", "Endwert", "Sharpe", "MaxDD", "Orders", "Gebuehren %",
+               "Orders/Tag", "Churning"]]
         print(t.to_string(index=False, formatters={
             "Endwert": "{:,.0f}".format, "Sharpe": "{:.2f}".format,
-            "MaxDD": "{:.2%}".format, "Orders/Tag": "{:.2f}".format}))
+            "MaxDD": "{:.2%}".format, "Gebuehren %": "{:.2%}".format,
+            "Orders/Tag": "{:.2f}".format}))
         print(f"  Sharpe  {d.Sharpe.mean():.3f} +- {d.Sharpe.std():.3f}"
               f"   Endwert {d.Endwert.mean():,.0f} +- {d.Endwert.std():,.0f}")
-        print(f"  Churning-Policies: {int(d.Churning.sum())} von {len(d)}\n")
-
-    print("--- Benchmarks (identisch in beiden Laeufen bis auf die Gebuehr) ---")
-    bm = da[~da.Strategie.str.startswith("PPO")]
-    print(bm[["Strategie", "Endwert", "Sharpe", "Orders", "Gebuehren"]].to_string(
-        index=False, formatters={"Endwert": "{:,.0f}".format, "Sharpe": "{:.2f}".format}))
+        print(f"  Churning-Policies: {int(d.Churning.sum())} von {len(d)}")
+        bm = roh[~roh.Strategie.str.startswith("PPO")]
+        print("  Benchmarks:")
+        print(bm[["Strategie", "Endwert", "Sharpe", "Orders", "Gebuehren"]].to_string(
+            index=False, formatters={"Endwert": "{:,.0f}".format, "Sharpe": "{:.2f}".format}))
+        print()
 
     # Gepaarter Test auf dem Sharpe. Nur als Indikation - n = 8.
     try:
@@ -85,8 +93,8 @@ def main() -> None:
 
         merged = a.merge(b, on="Strategie", suffixes=("_a", "_b"))
         if len(merged) >= 3:
-            st, pv = stats.wilcoxon(merged.Sharpe_a, merged.Sharpe_b)
-            print(f"\nWilcoxon (gepaart, Sharpe A vs B, n={len(merged)}): p = {pv:.3f}")
+            _, pv = stats.wilcoxon(merged.Sharpe_a, merged.Sharpe_b)
+            print(f"Wilcoxon (gepaart, Sharpe A vs B, n={len(merged)}): p = {pv:.3f}")
             print("  Bei n = 8 ist das eine Indikation, kein Nachweis.")
     except ImportError:
         pass

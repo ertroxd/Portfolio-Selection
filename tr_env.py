@@ -6,19 +6,34 @@ FinRLs StockTradingEnv rechnet Transaktionskosten rein prozentual ab
 Trade Republic verlangt stattdessen eine *feste* Pauschale je ausgefuehrter Order
 (aktuell 1,00 EUR Abwicklungskostenpauschale, 0,00 EUR bei Sparplanausfuehrung).
 
-Diese Klasse ersetzt deshalb genau die beiden Methoden. Alles andere - State-Aufbau,
-Reward, Reset, Reporting - bleibt unveraendert vom Eltern-Environment.
+Diese Klasse ersetzt deshalb genau die beiden Methoden. State-Aufbau, Reward und
+Reporting bleiben vom Eltern-Environment.
 
-State-Layout von StockTradingEnv (zum Mitlesen):
+State-Layout von StockTradingEnv (intern, immer roh in Euro):
     state[0]                            = Cash
     state[1 .. stock_dim]               = aktuelle Kurse je Titel
     state[stock_dim+1 .. 2*stock_dim]   = gehaltene Stueckzahlen je Titel
-    danach                              = technische Indikatoren
+    danach                              = technische Indikatoren, je Indikator ein Block
+                                          ueber alle Titel (erst alle rsi_30, dann alle macd)
+
+Beobachtung des Agenten
+-----------------------
+Mit ``normalize_obs=False`` sieht der Agent genau diesen rohen State - so liefen die
+ersten Laeufe. Das hat zwei Nachteile: Bei 1.000.000 EUR Startkapital bekommt das
+neuronale Netz Eingaben in Millionenhoehe, bei 1.000 EUR in Tausenderhoehe, Laeufe
+mit verschiedenem Kapital sind also nicht vergleichbar. Und die Kurse im Testzeitraum
+liegen weit ausserhalb dessen, was der Agent im Training gesehen hat.
+
+Mit ``normalize_obs=True`` sieht der Agent nur massstabsfreie Groessen:
+    [Cash-Anteil, Depotanteil je Titel, RSI/100 je Titel, MACD/Kurs je Titel]
+Der interne State bleibt roh - damit wird weiter gehandelt und abgerechnet.
 """
 from __future__ import annotations
 
 import finrl_shim  # noqa: F401  - muss vor dem finrl-Import stehen
+import numpy as np
 from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
+from gymnasium import spaces
 
 
 class TradeRepublicEnv(StockTradingEnv):
@@ -34,16 +49,45 @@ class TradeRepublicEnv(StockTradingEnv):
         Handeln nur an jedem n-ten Handelstag. 1 = taeglich (FinRL-Default),
         21 = ungefaehr monatlich. Dient der Abbildung von "semi-automatisch":
         wenige Entscheidungen pro Jahr, die ein Mensch pruefen koennte.
+    normalize_obs : bool
+        Agent sieht Anteile statt Euro-Betraege (siehe Moduldocstring).
     """
 
-    def __init__(self, *args, fixed_fee: float = 1.0, rebalance_every: int = 1, **kwargs):
+    def __init__(self, *args, fixed_fee: float = 1.0, rebalance_every: int = 1,
+                 normalize_obs: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
         self.fixed_fee = float(fixed_fee)
         self.rebalance_every = max(1, int(rebalance_every))
+        self.normalize_obs = bool(normalize_obs)
         self.last_episode_cost = 0.0
         self.last_episode_trades = 0
+        if self.normalize_obs:
+            dim = 1 + self.stock_dim + len(self.tech_indicator_list) * self.stock_dim
+            self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(dim,))
 
     # ------------------------------------------------------------------
+
+    def beobachtung(self) -> np.ndarray:
+        """Massstabsfreie Sicht auf den aktuellen State (siehe Moduldocstring)."""
+        n = self.stock_dim
+        s = np.asarray(self.state, dtype=np.float64)
+        cash, preise, bestand = s[0], s[1 : 1 + n], s[1 + n : 1 + 2 * n]
+        werte = preise * bestand
+        gesamt = cash + werte.sum()
+        teile = [np.array([cash / gesamt]), werte / gesamt]
+
+        indikatoren = s[1 + 2 * n :]
+        for j, name in enumerate(self.tech_indicator_list):
+            block = indikatoren[j * n : (j + 1) * n]
+            if name.startswith("rsi"):
+                block = block / 100.0
+            elif name.startswith("macd"):
+                block = block / preise
+            teile.append(block)
+        return np.concatenate(teile).astype(np.float32)
+
+    def _obs(self, state):
+        return self.beobachtung() if self.normalize_obs else state
 
     def reset(self, *, seed=None, options=None):
         """Bilanz der abgeschlossenen Episode sichern, dann zuruecksetzen.
@@ -55,7 +99,12 @@ class TradeRepublicEnv(StockTradingEnv):
         """
         self.last_episode_cost = float(getattr(self, "cost", 0.0))
         self.last_episode_trades = int(getattr(self, "trades", 0))
-        return super().reset(seed=seed, options=options)
+        state, info = super().reset(seed=seed, options=options)
+        return self._obs(state), info
+
+    def step(self, actions):
+        state, reward, terminal, truncated, info = super().step(actions)
+        return self._obs(state), reward, terminal, truncated, info
 
     # ------------------------------------------------------------------
 
