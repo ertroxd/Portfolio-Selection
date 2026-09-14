@@ -1,0 +1,26 @@
+# Thema 7 - lauffaehige Umgebung, Python 3.12
+#
+# FinRL selbst wird bewusst OHNE seine Abhaengigkeiten installiert:
+#     pip install --no-deps -e <pfad-zum-FinRL-clone>
+# oder direkt von GitHub:
+#     pip install --no-deps git+https://github.com/AI4Finance-Foundation/FinRL.git
+#
+# Grund: FinRLs requirements.txt zieht alpaca_trade_api, wrds, ray, TA-Lib und
+# selenium nach. Davon brauchen wir nichts, und alpaca_trade_api pinnt pandas < 2.
+# Die Import-Kette wird stattdessen von finrl_shim.py neutralisiert.
+#
+# Achtung: FinRL 0.3.8 deklariert stockstats<0.6 und yfinance<0.3. Wir laufen
+# bewusst auf neueren Versionen, weil wir YahooDownloader nicht benutzen (wir laden
+# selbst in run_training.load_prices) und FeatureEngineer mit stockstats 0.6.8
+# nachweislich funktioniert. Falls Indikatoren kaputtgehen: hier zuerst schauen.
+
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.9.0
+matplotlib==3.11.1
+stockstats==0.6.8
+yfinance==1.7.0
+stable-baselines3==2.4.1
+gymnasium==1.0.0
+torch==2.14.0
+pandas_market_calendars==5.4.0
