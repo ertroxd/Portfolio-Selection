@@ -70,33 +70,40 @@ lassen sich abweichend vom Training einstellen.
 - **Depot** — Zusammensetzung aus Cash und ETFs über die Zeit, in € und in Anteilen.
 - **Was hat er gelernt?** — Kurzdiagnose (Buy & Hold, Dauerhandel oder Umschichten; welchem Benchmark die Kurve am ähnlichsten ist), Aktion gegen Indikator je Handelstag und eine Policy-Sonde, die einen Indikator verschiebt und zeigt, wie die Policy reagiert.
 
-## Die bisherigen Läufe
+## Die Läufe
 
-Alle mit `EUNL.DE` + `IS3N.DE`, 10.000 € Start, 60.000 Timesteps, Train
-2016–2022, Validierung 2023, Test 2024-01-02 bis 2026-09-08.
+Beide mit `EUNL.DE` + `IS3N.DE`, 10.000 € Start, 1 € je Order, 60.000 Timesteps,
+Seeds 42–49, Train 2016–2022, Validierung 2023, Test 2024-01-02 bis 2026-09-08.
 
-| Ordner | Gebühr | Handelstakt | Seeds |
-|---|---|---|---|
-| `*_fee1_8seeds` | 1 € | täglich | 42–49 |
-| `*_fee0_8seeds` | 0 € | täglich | 42–49 |
-| `*_daily` | 1 € | täglich | 42–44 |
-| `*_monthly` | 1 € | alle 21 Handelstage | 42–44 |
-| `*_nofee` | 0 € | täglich | 42–44 |
-| `*_smoke`, `*_smoke2` | 1 € | täglich | 42, 2.000 Timesteps — nur Funktionstest |
+| Ordner | Handelstakt |
+|---|---|
+| `*_daily_fee1` | täglich |
+| `*_monthly_fee1` | alle 21 Handelstage |
 
-Die beiden 8-Seed-Läufe reproduzieren:
+Nachrechnen:
 
 ```bash
-.venv\Scripts\python.exe run_training.py --timesteps 60000 --seeds 42 43 44 45 46 47 48 49 --fee 1 --end 2026-09-09 --tag fee1_8seeds
-.venv\Scripts\python.exe run_training.py --timesteps 60000 --seeds 42 43 44 45 46 47 48 49 --fee 0 --end 2026-09-09 --tag fee0_8seeds
-.venv\Scripts\python.exe vergleich.py --a "runs/*_fee1_8seeds" --b "runs/*_fee0_8seeds"
+.venv\Scripts\python.exe run_training.py --timesteps 60000 --seeds 42 43 44 45 46 47 48 49 --fee 1 --rebalance 1 --end 2026-09-09 --tag daily_fee1
+.venv\Scripts\python.exe run_training.py --timesteps 60000 --seeds 42 43 44 45 46 47 48 49 --fee 1 --rebalance 21 --end 2026-09-09 --tag monthly_fee1
+.venv\Scripts\python.exe vergleich.py --a "runs/*_daily_fee1" --b "runs/*_monthly_fee1"
+.venv\Scripts\python.exe eval_saved.py --run runs/<ordner> --fee 0
 ```
 
-**Befunde aus den 8-Seed-Läufen:**
+Das Training ist deterministisch: Gleiche Einstellungen und gleiche Seeds ergeben
+bitgenau dieselben Modelle.
 
-- PPO schlägt 1/N Buy & Hold nicht: Sharpe 1,22 ± 0,08 mit Gebühr, 1,23 ± 0,07 ohne, 1,32 beim Benchmark. Gepaarter Wilcoxon-Test mit gegen ohne Gebühr: p = 0,84.
-- In beiden Varianten werden 3 von 8 Policies zu Vieltradern. Die Gebühr verhindert das nicht, halbiert aber ungefähr die Zahl der Orders.
-- Der reine Gebühreneffekt bei identischer Policy reicht von −2 € (2 Orders) bis −842 € (681 Orders). Kostenrelevant wird die Fixgebühr über den Turnover, nicht über den Depotwert.
+**Befunde:**
+
+| | Sharpe (8 Seeds) | Endwert (8 Seeds) | Orders |
+|---|---|---|---|
+| täglich | 1,22 ± 0,08 | 16.007 ± 797 € | 2 – 681 |
+| monatlich | 1,23 ± 0,12 | 15.235 ± 1.107 € | 9 – 41 |
+| 1/N Buy & Hold | 1,32 | 16.144 € | 2 |
+| 100 % MSCI World | 1,26 | 15.435 € | 1 |
+
+- PPO schlägt 1/N Buy & Hold im Mittel nicht, weder täglich noch monatlich. Gepaarter Wilcoxon-Test täglich gegen monatlich: p = 0,84.
+- Täglich wird 1 von 8 Agenten zum Vieltrader (681 Orders), zwei weitere handeln viel (193 und 270). Monatlich gibt es keine Vieltrader.
+- Reiner Gebühreneffekt (dieselbe Policy ohne Gebühr ausgewertet): täglich zwischen 2 € und 842 €, je nach Zahl der Orders. Monatlich sind die Gebühren klein, die Unterschiede entstehen dort vor allem dadurch, dass die Gebühr verändert, welche Orders überhaupt zustande kommen.
 
 ## Zwei Dinge, die man wissen muss
 
@@ -137,7 +144,6 @@ Alle kaufen nur ganze Stücke und zahlen dieselbe Gebühr wie der Agent.
 - `vergleich.py` rechnet mit fest eingetragenen 679 Handelstagen; bei einem anderen Testzeitraum stimmt die Vieltrader-Einstufung nicht mehr.
 - Der Docstring von `finrl_shim.py` behauptet, die Platzhalter fielen schon beim Anlegen auf — tatsächlich erst beim Methodenaufruf.
 - Nur ein Testfenster, keine Walk-Forward-Validierung.
-- Der monatliche Lauf hat nur 3 Seeds und ist damit nicht belastbar.
 - Der Reward ist `ΔVermögen`, also risikoneutral.
 - Beim Handelstakt kennt der Agent seine Handelstage nicht; Aktionen an gesperrten Tagen werden verworfen.
 - `reward_scaling` und die PPO-Hyperparameter sind FinRL-Defaults und ungeprüft.

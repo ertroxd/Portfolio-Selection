@@ -403,9 +403,110 @@ einen Zettel (`last_episode_cost`, `last_episode_trades`).
 
 ---
 
-## 12. Die Ergebnisse der neuen Läufe
+## 12. Die Ergebnisse
 
-> *Wird eingetragen, sobald die Läufe `daily_fee1` und `monthly_fee1` fertig sind.*
+Zwei Läufe, beide mit 1 € pro Order und je 8 Agenten (Seeds 42 bis 49):
+
+- **`daily_fee1`** – der Agent darf jeden Tag handeln.
+- **`monthly_fee1`** – der Agent darf nur jeden 21. Handelstag handeln.
+
+Alle Zahlen stammen aus der **Prüfung** (02.01.2024 bis 08.09.2026). Diese Kurse
+hat kein Agent beim Lernen gesehen.
+
+### 12.1 Vorweg: Gleiche Zutaten, gleicher Kuchen
+
+Die neu trainierten Agenten im Tageslauf sind **exakt dieselben** wie die alten,
+auf den Euro genau. Das ist kein Fehler. Gleiche Kurse, gleiche Einstellungen und
+gleiche Seeds ergeben gleiche Rädchen – wie ein Rezept, das jedes Mal genau
+gleich gelingt. Für das Referat ist das sogar gut: Jeder kann unsere Zahlen
+nachrechnen und bekommt dasselbe heraus.
+
+### 12.2 Die Zahlen
+
+| | Sharpe | Endwert | Orders |
+|---|---|---|---|
+| **Agenten täglich** (Mittel von 8) | 1,22 | 16.007 € | 2 bis 681 |
+| **Agenten monatlich** (Mittel von 8) | 1,23 | 15.235 € | 9 bis 41 |
+| 1/N Buy & Hold | **1,32** | **16.144 €** | 2 |
+| 100 % MSCI World | 1,26 | 15.435 € | 1 |
+
+Alle 16 Agenten einzeln:
+
+| Seed | täglich: Endwert | Sharpe | Orders | monatlich: Endwert | Sharpe | Orders |
+|---|---|---|---|---|---|---|
+| 42 | 17.204 € | 1,25 | 24 | 15.940 € | 1,13 | 9 |
+| 43 | 16.037 € | 1,34 | 16 | 14.610 € | 1,20 | 11 |
+| 44 | 15.446 € | 1,27 | 2 | 17.149 € | 1,30 | 24 |
+| 45 | 16.902 € | 1,21 | 30 | 16.171 € | 1,24 | 39 |
+| 46 | 16.446 € | 1,16 | 270 | 14.797 € | 1,16 | 9 |
+| 47 | 15.008 € | 1,20 | 193 | 14.252 € | 1,11 | 40 |
+| 48 | 15.822 € | 1,09 | 681 | 13.824 € | **1,50** | 41 |
+| 49 | 15.191 € | 1,22 | 18 | 15.135 € | 1,21 | 12 |
+
+### 12.3 Was das heißt – in sechs Sätzen
+
+**1. Kein Agent ist verlässlich besser als „halbe-halbe kaufen und liegen lassen".**
+Im Mittel haben die Agenten einen Sharpe von 1,22 bzw. 1,23, die langweilige
+1/N-Strategie hat 1,32. Nur 2 von 16 Agenten liegen darüber, und einer davon nur
+ganz knapp (1,34).
+
+**2. Viele Agenten haben gelernt: „Alles in einen Topf."**
+Täglich Seed 42 und Seed 48 hatten die ganze Zeit rund 98 % im
+Schwellenländer-Fonds (`IS3N.DE`). Täglich Seed 44 hatte 99,5 % im MSCI World
+(`EUNL.DE`). Das ist keine schlaue Handelsstrategie, sondern eine Wette auf
+einen einzigen Fonds. Welcher Fonds es wird, entscheidet der Zufall beim Lernen.
+
+**3. Der Zufall entscheidet mit.**
+Mit genau denselben Einstellungen endet ein Agent bei 15.008 €, ein anderer bei
+17.204 €. Nur der Seed ist anders. Wer nur einen einzigen Agenten zeigt, zeigt
+also vor allem, ob er Glück hatte. Deshalb trainieren wir 8.
+
+**4. Täglich handeln macht manche Agenten hektisch.**
+Täglich Seed 48 hat 681 Mal gehandelt, also 681 € Gebühren gezahlt. Seed 46 und
+47 kamen auf 270 und 193 Orders. Beim Monatstakt hat kein Agent mehr als 41 Mal
+gehandelt.
+
+**5. Was kostet die Gebühr wirklich?**
+Um das zu messen, lassen wir **dieselben** Agenten die Prüfung noch einmal ohne
+Gebühr spielen (`eval_saved.py --fee 0`). Der Unterschied ist das, was die Gebühr
+gekostet hat:
+
+| Seed (täglich) | Orders | So viel mehr Geld ohne Gebühr |
+|---|---|---|
+| 44 | 2 | 2 € |
+| 43 | 16 | 40 € |
+| 49 | 18 | 83 € |
+| 42 | 24 | 53 € |
+| 45 | 30 | 66 € |
+| 47 | 193 | 467 € |
+| 46 | 270 | 435 € |
+| 48 | 681 | **842 €** |
+
+Faustregel: Wer wenig handelt, merkt die Gebühr nicht. Wer viel handelt, verliert
+Hunderte Euro. **Nicht die Größe des Depots entscheidet, sondern wie oft man
+handelt.**
+
+Beim Monatstakt sind die Gebühren klein. Trotzdem gibt es dort Überraschungen:
+Monatlich Seed 47 zahlt nur 40 € Gebühren, hätte ohne Gebühr aber 603 € mehr.
+Monatlich Seed 48 hätte ohne Gebühr sogar 421 € **weniger**. Wie geht das? Die
+Gebühr bestimmt mit, welche Orders überhaupt stattfinden – eine Order, die sich
+mit 1 € Gebühr gerade nicht lohnt, findet ohne Gebühr statt. Danach sieht das
+ganze Depot anders aus, und dieser andere Weg kann besser oder schlechter
+ausgehen. Das nennt man **Pfadabhängigkeit**.
+
+**6. Der beste Sharpe ist nicht automatisch das meiste Geld.**
+Monatlich Seed 48 hat den besten Sharpe von allen (1,50) – und gleichzeitig am
+wenigsten Geld (13.824 €). Der Grund: Er hatte im Schnitt **40 % Bargeld** im
+Depot. Bargeld wackelt nicht, also wackelt das Depot wenig, also ist der Sharpe
+hoch. Aber Bargeld wächst auch nicht. Man muss immer mehrere Kennzahlen zusammen
+anschauen.
+
+### 12.4 Was man im Referat sagen kann
+
+> Unser PPO-Agent schlägt eine einfache 1/N-Strategie nicht verlässlich. Die
+> meisten Agenten lernen, einen einzelnen Fonds zu halten, und welcher das ist,
+> hängt vom Zufall ab. Die feste Ordergebühr von Trade Republic wird erst teuer,
+> wenn ein Agent viel handelt – täglicher Handel führt dazu, monatlicher nicht.
 
 ---
 
