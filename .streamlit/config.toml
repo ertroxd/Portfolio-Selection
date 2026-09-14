@@ -1,0 +1,7 @@
+# Demo-Seite nur auf diesem Rechner erreichbar machen.
+# Ohne diese Zeile lauscht Streamlit auf allen Netzwerkschnittstellen.
+[server]
+address = "localhost"
+
+[browser]
+gatherUsageStats = false

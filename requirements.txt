@@ -1,26 +1,32 @@
 # Thema 7 - lauffaehige Umgebung, Python 3.12
 #
-# FinRL selbst wird bewusst OHNE seine Abhaengigkeiten installiert:
-#     pip install --no-deps -e <pfad-zum-FinRL-clone>
-# oder direkt von GitHub:
-#     pip install --no-deps git+https://github.com/AI4Finance-Foundation/FinRL.git
+# Nicht direkt installieren, sondern setup.ps1 (Windows) bzw. setup.sh (macOS/Linux)
+# benutzen. Die Skripte installieren diese Datei und danach FinRL in einer festen
+# Version (Commit 2334a5f) OHNE dessen Abhaengigkeiten:
+#     pip install --no-deps https://github.com/AI4Finance-Foundation/FinRL/archive/2334a5fe6d30629157f13c3b0319e1637e15e123.zip
 #
-# Grund: FinRLs requirements.txt zieht alpaca_trade_api, wrds, ray, TA-Lib und
-# selenium nach. Davon brauchen wir nichts, und alpaca_trade_api pinnt pandas < 2.
-# Die Import-Kette wird stattdessen von finrl_shim.py neutralisiert.
+# Grund fuer --no-deps: FinRLs eigene Abhaengigkeiten ziehen alpaca_trade_api, wrds,
+# ray, TA-Lib und selenium nach. Davon brauchen wir nichts, und alpaca_trade_api
+# pinnt pandas < 2. Die Import-Kette neutralisiert finrl_shim.py.
 #
-# Achtung: FinRL 0.3.8 deklariert stockstats<0.6 und yfinance<0.3. Wir laufen
-# bewusst auf neueren Versionen, weil wir YahooDownloader nicht benutzen (wir laden
-# selbst in run_training.load_prices) und FeatureEngineer mit stockstats 0.6.8
-# nachweislich funktioniert. Falls Indikatoren kaputtgehen: hier zuerst schauen.
+# Achtung: FinRL deklariert stockstats<0.6 und yfinance<0.3. Wir laufen bewusst auf
+# neueren Versionen, weil wir YahooDownloader nicht benutzen (wir laden selbst in
+# run_training.load_prices) und FeatureEngineer mit stockstats 0.6.8 funktioniert.
 
+# Rechnen
 numpy==1.26.4
 pandas==2.2.3
 scikit-learn==1.9.0
-matplotlib==3.11.1
 stockstats==0.6.8
 yfinance==1.7.0
+pandas_market_calendars==5.4.0
+
+# Reinforcement Learning
 stable-baselines3==2.4.1
 gymnasium==1.0.0
 torch==2.14.0
-pandas_market_calendars==5.4.0
+
+# Plots und Demo-Seite
+matplotlib==3.11.1
+streamlit==1.63.0
+plotly==7.0.0
