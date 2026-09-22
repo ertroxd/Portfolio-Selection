@@ -8,9 +8,6 @@ Die Seite laedt eine gespeicherte PPO-Policy aus runs/, laesst sie ueber den
 Validierungs- oder Testzeitraum laufen und zeichnet jeden Schritt auf: was der
 Agent wollte, was tatsaechlich ausgefuehrt wurde, was es gekostet hat und wie
 sich das Depot entwickelt - verglichen mit MSCI World Buy & Hold als Markt.
-
-Funktioniert mit beiden Laufgenerationen: den ersten Laeufen (2 ETFs, roher State)
-und den Laeufen mit 9 ETFs, separatem Markt-Benchmark und normierter Beobachtung.
 """
 from __future__ import annotations
 
@@ -25,10 +22,8 @@ import streamlit as st
 
 import run_training as rt
 
-MARKT_STANDARD = "EUNL.DE"  # iShares Core MSCI World
-
-#: Anlageklasse je Ticker (neue Laeufe aus rt.UNIVERSUM, dazu die der ersten Laeufe).
-ANLAGEKLASSE = {**rt.UNIVERSUM, "EUNL.DE": "Aktien Welt", "IS3N.DE": "Aktien Schwellenlaender"}
+#: Anlageklasse je Ticker (rt.UNIVERSUM, dazu der Markt-Benchmark).
+ANLAGEKLASSE = {**rt.UNIVERSUM, "EUNL.DE": "Aktien Welt"}
 
 #: Ab so vielen Titeln wird das Depot nach Gruppen statt je Titel gezeigt.
 MAX_EINZELN = 5
@@ -197,8 +192,8 @@ def benchmarks(cfg: dict, zeitraum: str, fee: float) -> dict[str, tuple[pd.Serie
     tage = split_df(cfg, zeitraum).date.unique()
     teil = raw[raw.date.isin(tage)]
     out = {}
-    markt = cfg.get("markt")
-    if markt and markt not in cfg["tickers"]:
+    markt = cfg["markt"]
+    if markt not in cfg["tickers"]:
         m = markt_daten(markt, cfg["start"], cfg["end"])
         out[f"100 % {markt}"] = rt.bh_single(m[m.date.isin(tage)], cfg["initial"], fee, markt)
     for t in cfg["tickers"]:
@@ -209,12 +204,12 @@ def benchmarks(cfg: dict, zeitraum: str, fee: float) -> dict[str, tuple[pd.Serie
 
 def obs_spalte(cfg: dict, n: int, indikator: str, titel_idx: int) -> int:
     """Position eines Indikators in der Beobachtung des Agenten."""
-    davor = 1 + n if cfg.get("normalize_obs") else 1 + 2 * n
+    davor = 1 + n if cfg["normalize_obs"] else 1 + 2 * n
     return davor + cfg["indicators"].index(indikator) * n + titel_idx
 
 
 def obs_name(cfg: dict, indikator: str) -> str:
-    if not cfg.get("normalize_obs"):
+    if not cfg["normalize_obs"]:
         return indikator
     if indikator.startswith("rsi"):
         return f"{indikator} / 100"
@@ -249,18 +244,16 @@ with st.sidebar:
                                "unter anderen Kosten – wie eval_saved.py.")
     rebalance = st.number_input("Handeln alle n Handelstage", min_value=1, max_value=63,
                                 value=int(cfg["rebalance"]), step=1)
-    markt_optionen = list(dict.fromkeys(
-        ([cfg["markt"]] if cfg.get("markt") else []) + cfg["tickers"]))
-    standard_markt = cfg.get("markt") or MARKT_STANDARD
+    markt_optionen = list(dict.fromkeys([cfg["markt"]] + cfg["tickers"]))
     markt = st.selectbox("Markt-Vergleich", markt_optionen,
-                         index=markt_optionen.index(standard_markt) if standard_markt in markt_optionen else 0)
+                         index=markt_optionen.index(cfg["markt"]))
     st.divider()
     st.caption(
         f"**Training:** {cfg['timesteps']:,} Timesteps".replace(",", ".")
         + f" · Start {eur(cfg['initial'])} · Gebühr {zahl(cfg['fee'])} € · "
         f"Handeln alle {cfg['rebalance']} T · {len(cfg['tickers'])} Titel · "
         f"hmax {cfg['hmax']:,}".replace(",", ".")
-        + f" · Beobachtung {'Anteile' if cfg.get('normalize_obs') else 'roh'}"
+        + f" · Beobachtung {'Anteile' if cfg['normalize_obs'] else 'roh'}"
         + f"\n\n**Train** {cfg['start']} – {cfg['train_end']} · **Valid** bis {cfg['valid_end']} · "
         f"**Test** bis {cfg['end']} (Enddaten jeweils exklusiv)"
     )
@@ -504,7 +497,7 @@ with tab_gelernt:
     elif r["orders"] > 0 and abstand[naechster] < 0.01:
         st.info(f"Unter 1 % Abweichung: Dieser Agent hat im Kern gelernt, **{naechster}** "
                 f"nachzubauen. Das ist keine Handelsstrategie, sondern eine feste Allokation.")
-    if cfg.get("normalize_obs"):
+    if cfg["normalize_obs"]:
         schwelle = 1 / cfg["hmax"]
         st.caption(f"Totzone: Eine Aktion wird erst ab ±{zahl(schwelle, 3)} zu mindestens einem "
                    f"Anteil (hmax = {cfg['hmax']:,}).".replace(",", ".")

@@ -255,9 +255,8 @@ def build_env(split_df, args, indicators, fee, rebalance):
         reward_scaling=args.reward_scaling,
         print_verbosity=10**9,            # FinRLs Episoden-Prints unterdruecken
     )
-    # Alte Laeufe haben kein normalize_obs in der config -> roher State wie damals.
     return TradeRepublicEnv(df=split_df, fixed_fee=fee, rebalance_every=rebalance,
-                            normalize_obs=getattr(args, "normalize_obs", False), **kwargs)
+                            normalize_obs=args.normalize_obs, **kwargs)
 
 
 def main() -> None:
