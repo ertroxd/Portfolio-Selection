@@ -1,0 +1,42 @@
+{
+  "tickers": [
+    "SXR8.DE",
+    "XSX6.DE",
+    "IQQJ.DE",
+    "IQQE.DE",
+    "EUNH.DE",
+    "D5BG.DE",
+    "4GLD.DE",
+    "IQQ6.DE",
+    "EXXY.DE"
+  ],
+  "markt": "EUNL.DE",
+  "start": "2016-01-01",
+  "train_end": "2023-01-01",
+  "valid_end": "2024-01-01",
+  "end": "2026-09-09",
+  "indicators": [
+    "rsi_30",
+    "macd"
+  ],
+  "timesteps": 60000,
+  "seeds": [
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49
+  ],
+  "fee": 1.0,
+  "rebalance": 1,
+  "initial": 10000.0,
+  "risk_free": 0.02,
+  "hmax": 101,
+  "reward_scaling": 0.01,
+  "rohe_beobachtung": false,
+  "tag": "k10000_daily",
+  "normalize_obs": true
+}
