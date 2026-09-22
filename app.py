@@ -86,10 +86,11 @@ def depot_spalten(tickers: list[str]) -> tuple[dict[str, list[str]], dict[str, s
     return spalten, farben
 
 
-def layout(fig: go.Figure, y_titel: str, hoehe: int = 380, prozent: bool = False) -> go.Figure:
+def layout(fig: go.Figure, y_titel: str, hoehe: int = 380, prozent: bool = False,
+          hovermode: str = "x unified") -> go.Figure:
     fig.update_layout(
         height=hoehe,
-        hovermode="x unified",
+        hovermode=hovermode,
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
         margin=dict(l=8, r=8, t=36, b=8),
     )
@@ -534,10 +535,9 @@ with tab_gelernt:
                         customdata=teil.Datum.dt.strftime("%d.%m.%Y"),
                         hovertemplate="%{customdata}<br>" + obs_name(cfg, indikator)
                                       + " %{x:.3f} · Aktion %{y:+.2f}<extra>" + name + "</extra>")
+    layout(fig, "Rohaktion", hovermode="closest")
     fig.update_xaxes(title_text=f"{obs_name(cfg, indikator)} ({titel})")
-    fig.update_yaxes(title_text="Rohaktion", range=[-1.05, 1.05], tickformat=".1f")
-    fig.update_layout(height=380, hovermode="closest", margin=dict(l=8, r=8, t=36, b=8),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0))
+    fig.update_yaxes(range=[-1.05, 1.05], tickformat=".1f")
     zeige(fig)
 
     st.subheader("Policy-Sonde")
@@ -574,8 +574,7 @@ with tab_gelernt:
     fig.add_vline(x=float(beobachtet[t_idx]), line_width=1, line_color=FARBE_GRAU,
                   annotation_text="tatsächlicher Wert", annotation_position="top")
     fig.add_hline(y=0, line_width=1, line_color=FARBE_GRAU)
+    layout(fig, "Rohaktion", hoehe=340)
     fig.update_xaxes(title_text=f"{obs_name(cfg, sonde_ind)} ({sonde_titel})")
-    fig.update_yaxes(title_text="Rohaktion", range=[-1.05, 1.05], tickformat=".1f")
-    fig.update_layout(height=340, hovermode="x unified", margin=dict(l=8, r=8, t=36, b=8),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0))
+    fig.update_yaxes(range=[-1.05, 1.05], tickformat=".1f")
     zeige(fig)
