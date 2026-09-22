@@ -230,7 +230,7 @@ def rebalance_periodic(
                     cash = total - float((shares * row).sum())
         values.append(cash + float((shares * row).sum()))
 
-    label = f"1/N rebal. alle {every}T"
+    label = "1/N taeglich rebalanciert" if every == 1 else f"1/N rebal. alle {every}T"
     return pd.Series(values, index=px.index, name=label), {"Gebuehren": fees, "Orders": orders}
 
 
@@ -330,7 +330,11 @@ def main() -> None:
     for curve, info in (
         bh_equal(test_raw, args.initial, args.fee),
         bh_single(markt_test, args.initial, args.fee, args.markt),
-        rebalance_periodic(test_raw, args.initial, args.fee, max(args.rebalance, 21)),
+        # Gleiche Handelsfrequenz wie der Agent - vorher stand hier faelschlich
+        # max(args.rebalance, 21), wodurch ein taeglich handelnder Agent (rebalance=1)
+        # gegen einen nur monatlich rebalancierten Benchmark verglichen wurde, obwohl
+        # der Docstring "gleiche Handelsfrequenz" verspricht.
+        rebalance_periodic(test_raw, args.initial, args.fee, args.rebalance),
     ):
         benchmarks[curve.name] = curve
         bench_info[curve.name] = info
