@@ -372,8 +372,7 @@ def main() -> None:
             curve.index = pd.to_datetime(curve.index)
             # nach dem Auto-Reset von DummyVecEnv stehen die Episodenwerte in
             # last_episode_* (siehe TradeRepublicEnv.reset)
-            fees = e_eval.last_episode_cost or e_eval.cost
-            orders = e_eval.last_episode_trades or e_eval.trades
+            fees, orders = e_eval.episode_kosten()
             m = metrics(curve, risk_free_annual=args.risk_free)
             m.update(Split=split_name, Strategie=f"PPO seed {seed}",
                      Gebuehren=fees, Orders=orders)

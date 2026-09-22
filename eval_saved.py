@@ -66,9 +66,8 @@ def main() -> None:
         curve.index = pd.to_datetime(curve.index)
         # aeltere Laeufe haben kein "risk_free" in config.json -> Modul-Default nutzen
         m = rt.metrics(curve, risk_free_annual=getattr(args, "risk_free", rt.RISK_FREE_RATE))
-        m.update(Seed=seed,
-                 Orders=env.last_episode_trades or env.trades,
-                 Gebuehren=env.last_episode_cost or env.cost)
+        fees, orders = env.episode_kosten()
+        m.update(Seed=seed, Orders=orders, Gebuehren=fees)
         rows.append(m)
 
     res = pd.DataFrame(rows)[["Seed", "Endwert", "CAGR", "Sharpe", "MaxDD",

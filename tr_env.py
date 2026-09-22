@@ -102,6 +102,10 @@ class TradeRepublicEnv(StockTradingEnv):
         state, info = super().reset(seed=seed, options=options)
         return self._obs(state), info
 
+    def episode_kosten(self) -> tuple[float, int]:
+        """Gebuehren und Orders der letzten abgeschlossenen Episode (siehe reset())."""
+        return self.last_episode_cost or self.cost, self.last_episode_trades or self.trades
+
     def step(self, actions):
         state, reward, terminal, truncated, info = super().step(actions)
         return self._obs(state), reward, terminal, truncated, info
