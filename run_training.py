@@ -37,6 +37,11 @@ DATA_DIR = HERE / "data"
 RUNS_DIR = HERE / "runs"
 
 TRADING_DAYS = 252
+#: Grobe Annahme fuer den risikofreien Zins (Sharpe/Sortino) - wir binden keine
+#: historische EUR-Zinsreihe (z. B. EURIBOR/€STR) ein, sondern nehmen einen festen
+#: Mittelwert, der die Spanne 2016-2026 ueberschlaegig abdeckt (negative
+#: EZB-Einlagenzinsen bis 2021, danach steigend). Ueberschreibbar per --risk-free.
+RISK_FREE_RATE = 0.02
 
 #: Handelbares Universum: neun Xetra-ETFs/ETCs ueber die grossen Anlageklassen.
 UNIVERSUM = {
@@ -125,8 +130,14 @@ def add_features(df: pd.DataFrame, indicators: list[str]) -> pd.DataFrame:
 # ----------------------------------------------------------------------
 # 2. Kennzahlen
 # ----------------------------------------------------------------------
-def metrics(curve: pd.Series) -> dict:
-    """Rendite- und Risikokennzahlen einer Depotwert-Zeitreihe."""
+def metrics(curve: pd.Series, risk_free_annual: float = RISK_FREE_RATE) -> dict:
+    """Rendite- und Risikokennzahlen einer Depotwert-Zeitreihe.
+
+    `risk_free_annual` wird in eine taegliche Rate umgerechnet und von den
+    Tagesrenditen abgezogen, bevor Sharpe/Sortino berechnet werden - vorher
+    wurde hier faelschlich mit 0 % risikofreiem Zins gerechnet (Sharpe = Rendite
+    / Vola statt Ueberschussrendite / Vola).
+    """
     curve = curve.dropna()
     if len(curve) < 3:
         return {k: float("nan") for k in
@@ -136,9 +147,12 @@ def metrics(curve: pd.Series) -> dict:
     years = len(curve) / TRADING_DAYS
     cagr = (curve.iloc[-1] / curve.iloc[0]) ** (1 / years) - 1 if years > 0 else np.nan
     vola = ret.std() * np.sqrt(TRADING_DAYS)
-    sharpe = (ret.mean() / ret.std() * np.sqrt(TRADING_DAYS)) if ret.std() > 0 else np.nan
+
+    rf_daily = (1 + risk_free_annual) ** (1 / TRADING_DAYS) - 1
+    excess = ret - rf_daily
+    sharpe = (excess.mean() / ret.std() * np.sqrt(TRADING_DAYS)) if ret.std() > 0 else np.nan
     downside = ret[ret < 0].std()
-    sortino = (ret.mean() / downside * np.sqrt(TRADING_DAYS)) if downside and downside > 0 else np.nan
+    sortino = (excess.mean() / downside * np.sqrt(TRADING_DAYS)) if downside and downside > 0 else np.nan
     maxdd = (curve / curve.cummax() - 1).min()
 
     return {
@@ -262,6 +276,8 @@ def main() -> None:
     p.add_argument("--fee", type=float, default=1.0, help="EUR je Order")
     p.add_argument("--rebalance", type=int, default=1, help="1=taeglich, 21=monatlich")
     p.add_argument("--initial", type=float, default=10_000.0)
+    p.add_argument("--risk-free", type=float, default=RISK_FREE_RATE, dest="risk_free",
+                   help="Jaehrlicher risikofreier Zins fuer Sharpe/Sortino (Annahme, siehe RISK_FREE_RATE)")
     p.add_argument("--hmax", type=int, default=None,
                    help="max. Stueck je Order. Standard: eine volle Aktion im billigsten "
                         "Titel bewegt 1/N des Startkapitals")
@@ -348,7 +364,7 @@ def main() -> None:
             # last_episode_* (siehe TradeRepublicEnv.reset)
             fees = e_eval.last_episode_cost or e_eval.cost
             orders = e_eval.last_episode_trades or e_eval.trades
-            m = metrics(curve)
+            m = metrics(curve, risk_free_annual=args.risk_free)
             m.update(Split=split_name, Strategie=f"PPO seed {seed}",
                      Gebuehren=fees, Orders=orders)
             rows.append(m)
@@ -360,7 +376,7 @@ def main() -> None:
                   f"{orders} Orders, {fees:.0f} EUR Gebuehren")
 
     for name, curve in benchmarks.items():
-        m = metrics(curve)
+        m = metrics(curve, risk_free_annual=args.risk_free)
         m.update(Split="test", Strategie=name, **bench_info[name])
         rows.append(m)
 
