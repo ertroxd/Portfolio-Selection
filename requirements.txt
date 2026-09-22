@@ -25,6 +25,8 @@ pandas_market_calendars==5.4.0
 stable-baselines3==2.4.1
 gymnasium==1.0.0
 torch==2.14.0
+tqdm==4.67.1
+rich==13.9.4
 
 # Plots und Demo-Seite
 matplotlib==3.11.1

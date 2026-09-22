@@ -355,8 +355,14 @@ def main() -> None:
             seed=seed,
             verbose=0,
         )
-        trained = agent.train_model(model=model, tb_log_name=f"ppo_s{seed}",
-                                   total_timesteps=args.timesteps)
+        # agent.train_model() (FinRLs Wrapper) zeigt keinen Fortschritt an. `model`
+        # ist bereits ein normales stable_baselines3.PPO-Objekt (das FinRL intern
+        # ueber get_model() erzeugt) - wir rufen dessen eigene .learn()-Methode
+        # direkt auf, nur mit progress_bar=True zusaetzlich. Funktional identisch
+        # zu agent.train_model(), nur mit sichtbarem Fortschritt (tqdm/rich noetig,
+        # siehe requirements.txt).
+        trained = model.learn(total_timesteps=args.timesteps, tb_log_name=f"ppo_s{seed}",
+                              progress_bar=True)
         trained.save(str(out / f"ppo_seed{seed}.zip"))
 
         for split_name, split_df in (("valid", valid), ("test", test)):
